@@ -5,5 +5,6 @@ public enum Classification {
     WARNING,
     INFO,
     RECOVERY,
-    UNKNOWN
+    UNKNOWN,
+    ACKNOWLEDGED
 }

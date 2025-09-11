@@ -34,5 +34,38 @@ public class ZabbixMessage implements Message {
     public Instant getTimestamp() { return timestamp; }
     @Override
     public Map<String, String> getCustomFields() { return customFields; }
-}
 
+    public static Classification mapClassification(org.json.JSONObject problem) {
+        int severity = problem.optInt("severity", 0);
+        int suppressed = problem.optInt("suppressed", 0);
+        int acknowledged = problem.optInt("acknowledged", 0);
+        int rns = problem.optInt("r_ns", 0);
+        // Recovery-Event
+        if (rns > 0) return Classification.RECOVERY;
+        // acknowledged als ACKNOWLEDGED
+        if (acknowledged == 1) return Classification.ACKNOWLEDGED;
+        if (suppressed == 1) return Classification.INFO;
+        return switch (severity) {
+            case 0 -> Classification.UNKNOWN;
+            case 1 -> Classification.INFO;
+            case 2 -> Classification.WARNING;
+            case 3 -> Classification.WARNING;
+            case 4 -> Classification.CRITICAL;
+            case 5 -> Classification.CRITICAL;
+            default -> Classification.UNKNOWN;
+        };
+    }
+
+    public static ZabbixMessage fromJson(org.json.JSONObject problem) {
+        String title = problem.optString("name", "Problem");
+        String msg = problem.optString("eventid", "") + ": " + problem.optString("name", "");
+        String host = problem.optString("host", "");
+        Classification classification = mapClassification(problem);
+        Instant timestamp = Instant.ofEpochSecond(problem.optLong("clock", Instant.now().getEpochSecond()));
+        java.util.HashMap<String, String> customFields = new java.util.HashMap<>();
+        for (String key : problem.keySet()) {
+            customFields.put(key, problem.optString(key, ""));
+        }
+        return new ZabbixMessage(title, msg, host, classification, timestamp, customFields);
+    }
+}

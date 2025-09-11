@@ -57,6 +57,7 @@ public class MainController {
   private ScheduledFuture<?> pollTask;
   private int lastPollInterval = -1;
   private boolean hadMessages = false;
+  private boolean hadCriticalMessages = false;
 
   @FXML
   protected void onHelloButtonClick() {
@@ -147,45 +148,48 @@ public class MainController {
 
   private void loadMessages() {
     Server server = new ZabbixServer();
-    // Konfiguration aus AppSettings übernehmen
     server.setConfiguration(AppSettings.getInstance().getServerConfiguration());
     List<Message> messages = server.pollMessages();
     boolean hasMessages = messages != null && !messages.isEmpty();
-    // Benachrichtigung und Sound, wenn Wechsel von keine zu mindestens eine Nachricht
-    if (!hadMessages && hasMessages) {
-      ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.obsero.messages", LanguageManager.getLocale());
-      String newMessageTitle = bundle.getString("notification.newMessages.title");
-      String newMessageText = bundle.getString("notification.newMessages.text");
-      Platform.runLater(() -> {
-        sendSystemNotification(newMessageTitle, newMessageText);
-        playNotificationSound();
-      });
+    boolean hasCriticalMessages = messages.stream().anyMatch(msg ->
+        msg.getClassification() == de.paschty.obsero.monitor.Classification.CRITICAL
+        || msg.getClassification() == de.paschty.obsero.monitor.Classification.WARNING);
+    // Notification/Sound nur bei Wechsel von keine zu mindestens eine kritische Nachricht
+    if (!hadCriticalMessages && hasCriticalMessages) {
+        ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.obsero.messages", LanguageManager.getLocale());
+        String newMessageTitle = bundle.getString("notification.newMessages.title");
+        String newMessageText = bundle.getString("notification.newMessages.text");
+        Platform.runLater(() -> {
+            sendSystemNotification(newMessageTitle, newMessageText);
+            playNotificationSound();
+        });
     }
     hadMessages = hasMessages;
+    hadCriticalMessages = hasCriticalMessages;
     Platform.runLater(() -> {
-      ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.obsero.messages", LanguageManager.getLocale());
-      if (!hasMessages) {
-        messagesTable.setVisible(false);
-        okLabel.setVisible(true);
-        okLabel.setText(bundle.getString("status.ok"));
-        okLabel.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10px; -fx-font-size: 20px;");
-        okLabel.setAlignment(javafx.geometry.Pos.CENTER);
-        okLabel.setMaxWidth(Double.MAX_VALUE);
-        okLabel.setMaxHeight(Double.MAX_VALUE);
-        javafx.scene.layout.VBox.setVgrow(okLabel, javafx.scene.layout.Priority.ALWAYS);
-        rootVBox.setAlignment(javafx.geometry.Pos.CENTER);
-      } else {
-        ObservableList<Message> data = FXCollections.observableArrayList(messages);
-        messagesTable.setItems(data);
-        messagesTable.setVisible(true);
-        okLabel.setVisible(false);
-        okLabel.setStyle(""); // Style zurücksetzen
-        okLabel.setAlignment(javafx.geometry.Pos.BASELINE_LEFT);
-        okLabel.setMaxWidth(Region.USE_COMPUTED_SIZE);
-        okLabel.setMaxHeight(Region.USE_COMPUTED_SIZE);
-        javafx.scene.layout.VBox.setVgrow(okLabel, javafx.scene.layout.Priority.NEVER);
-        rootVBox.setAlignment(javafx.geometry.Pos.TOP_LEFT);
-      }
+        ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.obsero.messages", LanguageManager.getLocale());
+        if (!hasMessages) {
+            messagesTable.setVisible(false);
+            okLabel.setVisible(true);
+            okLabel.setText(bundle.getString("status.ok"));
+            okLabel.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10px; -fx-font-size: 20px;");
+            okLabel.setAlignment(javafx.geometry.Pos.CENTER);
+            okLabel.setMaxWidth(Double.MAX_VALUE);
+            okLabel.setMaxHeight(Double.MAX_VALUE);
+            javafx.scene.layout.VBox.setVgrow(okLabel, javafx.scene.layout.Priority.ALWAYS);
+            rootVBox.setAlignment(javafx.geometry.Pos.CENTER);
+        } else {
+            ObservableList<Message> data = FXCollections.observableArrayList(messages);
+            messagesTable.setItems(data);
+            messagesTable.setVisible(true);
+            okLabel.setVisible(false);
+            okLabel.setStyle(""); // Style zurücksetzen
+            okLabel.setAlignment(javafx.geometry.Pos.BASELINE_LEFT);
+            okLabel.setMaxWidth(Region.USE_COMPUTED_SIZE);
+            okLabel.setMaxHeight(Region.USE_COMPUTED_SIZE);
+            javafx.scene.layout.VBox.setVgrow(okLabel, javafx.scene.layout.Priority.NEVER);
+            rootVBox.setAlignment(javafx.geometry.Pos.TOP_LEFT);
+        }
     });
   }
 

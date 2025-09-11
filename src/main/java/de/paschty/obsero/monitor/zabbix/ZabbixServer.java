@@ -101,12 +101,6 @@ public class ZabbixServer implements Server {
       }
       for (int i = 0; i < problems.length(); i++) {
         JSONObject problem = problems.getJSONObject(i);
-        // Filter für r_ns > 0
-        int rns = problem.has("r_ns") ? problem.optInt("r_ns", 0) : 0;
-        if (rns > 0) {
-          logger.info("Message '{}' mit r_ns={} is already resolved.", problem.optString("name", ""), rns);
-          continue;
-        }
         String name = problem.optString("name", "");
         boolean filtered = false;
         for (String filter : filterList) {
@@ -117,7 +111,7 @@ public class ZabbixServer implements Server {
           }
         }
         if (!filtered) {
-          messages.add(jsonToMessage(problem));
+          messages.add(ZabbixMessage.fromJson(problem));
         }
       }
     } catch (Exception e) {
