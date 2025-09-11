@@ -7,6 +7,7 @@ import de.paschty.obsero.monitor.Server;
 import de.paschty.obsero.monitor.zabbix.ZabbixServer;
 import de.paschty.obsero.monitor.zabbix.ZabbixServerConfiguration;
 
+import javafx.animation.PauseTransition;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
@@ -367,6 +368,9 @@ public class MainController {
             .title(bundle.getString("acknowledge.success.title"))
             .text(bundle.getString("acknowledge.success.text"))
             .showInformation();
+          PauseTransition pause = new PauseTransition(javafx.util.Duration.seconds(1));
+          pause.setOnFinished(ev -> loadMessages());
+          pause.play();
         } else {
           Notifications.create()
             .title(bundle.getString("acknowledge.error.title"))
