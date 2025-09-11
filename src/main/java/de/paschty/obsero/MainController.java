@@ -1,5 +1,7 @@
 package de.paschty.obsero;
 
+import static javafx.scene.control.ButtonBar.ButtonData.OK_DONE;
+
 import de.paschty.obsero.monitor.Message;
 import de.paschty.obsero.monitor.Server;
 import de.paschty.obsero.monitor.zabbix.ZabbixServer;
@@ -11,6 +13,8 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.ButtonBar.ButtonData;
+import javafx.scene.control.DialogPane;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
@@ -30,6 +34,12 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import javafx.util.Duration;
 import org.controlsfx.control.Notifications;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.ButtonType;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class MainController {
 
@@ -54,11 +64,18 @@ public class MainController {
   @FXML
   private Label okLabel;
 
+  @FXML
+  private MenuItem acknowledgeMenuItem;
+
   private ScheduledExecutorService scheduler;
   private ScheduledFuture<?> pollTask;
   private int lastPollInterval = -1;
   private boolean hadMessages = false;
   private boolean hadCriticalMessages = false;
+
+  private Server server;
+
+  private static final Logger logger = LogManager.getLogger(MainController.class);
 
   @FXML
   protected void onHelloButtonClick() {
@@ -81,6 +98,10 @@ public class MainController {
       stage.showAndWait(); // Warten bis geschlossen
       // Nach Schließen: Timer neu starten, falls Intervall geändert
       restartPollingIfNeeded();
+      // Server-Konfiguration nach Dialog aktualisieren
+      if (server != null) {
+        server.setConfiguration(AppSettings.getInstance().getServerConfiguration());
+      }
     } catch (IOException e) {
       e.printStackTrace();
     }
@@ -115,35 +136,55 @@ public class MainController {
       java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(cellData.getValue().getTimestamp().atZone(java.time.ZoneId.systemDefault()))
     ));
 
-    // RowFactory für farbige Zeilen
-    messagesTable.setRowFactory(tableView -> new TableRow<>() {
-      @Override
-      protected void updateItem(Message msg, boolean empty) {
-        super.updateItem(msg, empty);
-        if (msg == null || empty) {
-          setStyle("");
-        } else if (isSelected()) {
-          setStyle("-fx-background-color: #1976d2; -fx-text-fill: white;");
-        } else {
-          switch (msg.getClassification()) {
-            case CRITICAL -> setStyle("-fx-background-color: #ffcccc; -fx-text-fill: black;");
-            case WARNING -> setStyle("-fx-background-color: #fff8dc; -fx-text-fill: black;");
-            case INFO -> setStyle("-fx-background-color: #e6f0ff; -fx-text-fill: black;");
-            case RECOVERY -> setStyle("-fx-background-color: #e6ffe6; -fx-text-fill: black;");
-            case ACKNOWLEDGED -> setStyle("-fx-background-color: #eeeeee; -fx-text-fill: black;");
-            case UNKNOWN -> setStyle("");
+    // RowFactory für farbige Zeilen und Kontextmenü pro Zeile
+    messagesTable.setRowFactory(tableView -> {
+      TableRow<Message> row = new TableRow<>() {
+        @Override
+        protected void updateItem(Message msg, boolean empty) {
+          super.updateItem(msg, empty);
+          if (msg == null || empty) {
+            setStyle("");
+            setContextMenu(null); // Kontextmenü entfernen, wenn leer
+          } else if (isSelected()) {
+            setStyle("-fx-background-color: #1976d2; -fx-text-fill: white;");
+          } else {
+            switch (msg.getClassification()) {
+              case CRITICAL -> setStyle("-fx-background-color: #ffcccc; -fx-text-fill: black;");
+              case WARNING -> setStyle("-fx-background-color: #fff8dc; -fx-text-fill: black;");
+              case INFO -> setStyle("-fx-background-color: #e6f0ff; -fx-text-fill: black;");
+              case RECOVERY -> setStyle("-fx-background-color: #e6ffe6; -fx-text-fill: black;");
+              case ACKNOWLEDGED -> setStyle("-fx-background-color: #eeeeee; -fx-text-fill: black;");
+              case UNKNOWN -> setStyle("");
+            }
+          }
+          // Kontextmenü nur für nicht-ACKNOWLEDGED Nachrichten
+          if (msg != null && !empty && msg.getClassification() != de.paschty.obsero.monitor.Classification.ACKNOWLEDGED) {
+            ContextMenu contextMenu = new ContextMenu();
+            MenuItem acknowledgeItem = new MenuItem("Acknowledge");
+            acknowledgeItem.setOnAction(e -> {
+              messagesTable.getSelectionModel().select(getIndex());
+              onAcknowledgeMenuClick();
+            });
+            contextMenu.getItems().add(acknowledgeItem);
+            setContextMenu(contextMenu);
+          } else {
+            setContextMenu(null);
           }
         }
-      }
+      };
+      return row;
     });
     //loadMessages();
     startPolling();
-
   }
 
   private void startPolling() {
     stopPolling(); // Vorher alles stoppen
-    scheduler = Executors.newSingleThreadScheduledExecutor();
+    scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+      Thread t = new Thread(r);
+      t.setDaemon(true);
+      return t;
+    });
     restartPollingIfNeeded();
   }
 
@@ -170,8 +211,11 @@ public class MainController {
   }
 
   private void loadMessages() {
-    Server server = new ZabbixServer();
-    server.setConfiguration(AppSettings.getInstance().getServerConfiguration());
+    // Server verwenden
+    if (server == null) {
+      server = new ZabbixServer();
+      server.setConfiguration(AppSettings.getInstance().getServerConfiguration());
+    }
     List<Message> messages = server.pollMessages();
     boolean hasMessages = messages != null && !messages.isEmpty();
     boolean hasCriticalMessages = messages.stream().anyMatch(msg ->
@@ -283,6 +327,62 @@ public class MainController {
     appSettings.setWindowHeight(stage.getHeight());
     SettingsManager.save();
     Platform.exit();
+  }
+
+  @FXML
+  private void onAcknowledgeMenuClick() {
+    logger.info("Acknowledge menu click triggered");
+    ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.obsero.messages", LanguageManager.getLocale());
+    Message selectedMessage = messagesTable.getSelectionModel().getSelectedItem();
+    if (selectedMessage == null) {
+      logger.warn("No message selected");
+      Notifications.create()
+        .title(bundle.getString("acknowledge.noMessageSelected.title"))
+        .text(bundle.getString("acknowledge.noMessageSelected.text"))
+        .showWarning();
+      return;
+    }
+    try {
+      FXMLLoader loader = new FXMLLoader(getClass().getResource("/de/paschty/obsero/acknowledge-dialog.fxml"), bundle);
+      DialogPane dialogPane = loader.load();
+      AcknowledgeDialogController dialogController = loader.getController();
+      Dialog<ButtonType> dialog = new Dialog<>();
+      dialog.setDialogPane(dialogPane);
+      dialog.setTitle(bundle.getString("acknowledge.dialog.title"));
+      dialog.initOwner(rootVBox.getScene().getWindow());
+      ButtonType result = dialog.showAndWait().orElse(ButtonType.CANCEL);
+      logger.info("Result: {}", result);
+      if (result.getButtonData().equals(OK_DONE)) {
+        String ackMessage = dialogController.getMessage();
+        logger.info("SelectedMessage ID: {}, Text: {}", selectedMessage.getId(), ackMessage);
+        logger.info("Server: {}", server);
+        boolean success = false;
+        if (server != null) {
+          success = server.acknowledgeMessage(selectedMessage.getId(), ackMessage);
+        } else {
+          logger.error("Server is null!");
+        }
+        if (success) {
+          Notifications.create()
+            .title(bundle.getString("acknowledge.success.title"))
+            .text(bundle.getString("acknowledge.success.text"))
+            .showInformation();
+        } else {
+          Notifications.create()
+            .title(bundle.getString("acknowledge.error.title"))
+            .text(bundle.getString("acknowledge.error.text"))
+            .showError();
+        }
+      }
+    } catch (IOException e) {
+      logger.error("Error opening dialog", e);
+      Notifications.create()
+        .title(bundle.getString("acknowledge.dialogOpenError.title"))
+        .text(bundle.getString("acknowledge.dialogOpenError.text"))
+        .showError();
+    } catch (Exception e) {
+      logger.error("Error in onAcknowledgeMenuClick", e);
+    }
   }
 
 }

@@ -186,4 +186,74 @@ public class ZabbixServer implements Server {
       return new ConfigurationTestResult(false, "Error: " + e.getMessage());
     }
   }
+
+  @Override
+  public boolean acknowledgeMessage(String eventId, String message) {
+    logger.info("Acknowledge event {} with message: {}", eventId, message);
+    String url = configuration.getUrl().getValue();
+    String username = configuration.getUsername().getValue();
+    String password = configuration.getPassword().getValue();
+    String apiUrl = url + "/api_jsonrpc.php";
+    try {
+      // 1. Login: Get Auth-Token
+      JSONObject loginRequest = new JSONObject();
+      loginRequest.put("jsonrpc", "2.0");
+      loginRequest.put("method", "user.login");
+      loginRequest.put("params", new JSONObject()
+          .put("user", username)
+          .put("password", password));
+      loginRequest.put("id", 1);
+      HttpRequest loginHttpRequest = HttpRequest.newBuilder()
+          .uri(URI.create(apiUrl))
+          .header("Content-Type", "application/json")
+          .POST(HttpRequest.BodyPublishers.ofString(loginRequest.toString(), StandardCharsets.UTF_8))
+          .build();
+      HttpResponse<String> loginResponse = httpClient.send(loginHttpRequest, HttpResponse.BodyHandlers.ofString());
+      JSONObject loginJson = new JSONObject(loginResponse.body());
+      if (!loginJson.has("result")) {
+        logger.error("Login failed: {}", loginJson);
+        return false;
+      }
+      String authToken = loginJson.getString("result");
+      // 2. Acknowledge event
+      JSONObject ackRequest = new JSONObject();
+      ackRequest.put("jsonrpc", "2.0");
+      ackRequest.put("method", "event.acknowledge");
+      JSONObject params = new JSONObject();
+      params.put("eventids", eventId);
+      params.put("action", 6);
+      if (message != null && !message.isEmpty()) {
+        params.put("message", message);
+      }
+      ackRequest.put("params", params);
+      ackRequest.put("auth", authToken);
+      ackRequest.put("id", 2);
+      HttpRequest ackHttpRequest = HttpRequest.newBuilder()
+          .uri(URI.create(apiUrl))
+          .header("Content-Type", "application/json")
+          .POST(HttpRequest.BodyPublishers.ofString(ackRequest.toString(), StandardCharsets.UTF_8))
+          .build();
+      HttpResponse<String> ackResponse = httpClient.send(ackHttpRequest, HttpResponse.BodyHandlers.ofString());
+      logger.info("Acknowledge acknowledge response: {}", ackResponse.body());
+      JSONObject ackJson = new JSONObject(ackResponse.body());
+      if (ackJson.has("result") && ackJson.getJSONObject("result").has("eventids")) {
+        JSONArray eventIds = ackJson.getJSONObject("result").getJSONArray("eventids");
+        boolean success = false;
+        for (int i = 0; i < eventIds.length(); i++) {
+          if (String.valueOf(eventIds.get(i)).equals(eventId)) {
+            success = true;
+            break;
+          }
+        }
+        return success;
+      } else {
+        logger.error("Acknowledge failed: {}", ackJson);
+        return false;
+      }
+    } catch (Exception e) {
+      logger.error("Exception during acknowledgeMessage", e);
+      return false;
+    }
+  }
+
 }

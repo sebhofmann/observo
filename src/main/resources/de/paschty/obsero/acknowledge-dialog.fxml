@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<DialogPane xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="de.paschty.obsero.AcknowledgeDialogController">
+  <content>
+    <VBox spacing="10">
+      <Label text="Optionaler Kommentar zur Bestätigung:" />
+      <TextArea fx:id="messageTextArea" promptText="Kommentar (optional)" prefRowCount="4" />
+    </VBox>
+  </content>
+  <buttonTypes>
+    <ButtonType fx:id="okButton" text="OK" buttonData="OK_DONE" />
+    <ButtonType fx:id="cancelButton" text="Abbrechen" buttonData="CANCEL_CLOSE" />
+  </buttonTypes>
+</DialogPane>
+

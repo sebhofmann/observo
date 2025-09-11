@@ -7,6 +7,7 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.image.Image;
 import javafx.stage.Stage;
+import javafx.application.Platform;
 
 import java.io.IOException;
 
@@ -18,6 +19,7 @@ public class ObseroApplication extends Application {
     SettingsManager.load();
     AppSettings appSettings = AppSettings.getInstance();
     // Sprache aus globalem Objekt setzen
+    LanguageManager.setLocale(appSettings.getLocale());
     java.util.Locale locale = appSettings.getLocale();
     java.util.ResourceBundle bundle = java.util.ResourceBundle.getBundle(
         "de.paschty.obsero.messages", locale);
@@ -46,10 +48,6 @@ public class ObseroApplication extends Application {
       appSettings.setWindowWidth(stage.getWidth());
       appSettings.setWindowHeight(stage.getHeight());
       SettingsManager.save();
-      // Hintergrund-Thread beenden
-      if (mainController != null) {
-        mainController.stopPolling();
-      }
       // Fenster minimieren statt beenden
       event.consume();
       stage.setIconified(true);

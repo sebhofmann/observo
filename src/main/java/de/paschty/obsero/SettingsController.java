@@ -14,10 +14,13 @@ public class SettingsController {
     public void initialize() {
         languageComboBox.getItems().addAll("Deutsch", "English");
         Locale current = LanguageManager.getLocale();
-        if (current.getLanguage().equals("de")) {
+        String lang = current.getLanguage();
+        if ("de".equals(lang)) {
             languageComboBox.getSelectionModel().select("Deutsch");
-        } else {
+        } else if ("en".equals(lang)) {
             languageComboBox.getSelectionModel().select("English");
+        } else {
+            languageComboBox.getSelectionModel().select("English"); // Fallback
         }
     }
 
