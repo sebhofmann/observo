@@ -13,6 +13,7 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
@@ -113,6 +114,26 @@ public class MainController {
     timestampColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(
       java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(cellData.getValue().getTimestamp().atZone(java.time.ZoneId.systemDefault()))
     ));
+
+    // RowFactory für farbige Zeilen
+    messagesTable.setRowFactory(tableView -> new TableRow<>() {
+      @Override
+      protected void updateItem(Message msg, boolean empty) {
+        super.updateItem(msg, empty);
+        if (msg == null || empty) {
+          setStyle("");
+        } else {
+          switch (msg.getClassification()) {
+            case CRITICAL -> setStyle("-fx-background-color: #ffcccc;");
+            case WARNING -> setStyle("-fx-background-color: #fff8dc;");
+            case INFO -> setStyle("-fx-background-color: #e6f0ff;");
+            case RECOVERY -> setStyle("-fx-background-color: #e6ffe6;");
+            case ACKNOWLEDGED -> setStyle("-fx-background-color: #eeeeee;");
+            case UNKNOWN -> setStyle("");
+          }
+        }
+      }
+    });
     //loadMessages();
     startPolling();
 
