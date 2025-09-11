@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<VBox xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="de.paschty.obsero.MainController" fx:id="rootVBox" prefWidth="1000" prefHeight="400">
+  <MenuBar>
+    <Menu text="%main.menu.file">
+      <MenuItem text="%main.menu.serverConfig" onAction="#onServerConfigMenuClick" />
+      <MenuItem text="%main.menu.settings" onAction="#onSettingsMenuClick" />
+      <MenuItem text="%main.menu.exit" onAction="#onExitMenuClick" />
+    </Menu>
+  </MenuBar>
+  <!-- Tabelle für Nachrichten, füllt den verfügbaren Platz -->
+  <TableView fx:id="messagesTable" VBox.vgrow="ALWAYS" prefWidth="1000">
+    <columns>
+      <TableColumn fx:id="titleColumn" text="Titel" prefWidth="120" />
+      <TableColumn fx:id="messageColumn" text="Nachricht" prefWidth="250" />
+      <TableColumn fx:id="hostColumn" text="Host" prefWidth="100" />
+      <TableColumn fx:id="classificationColumn" text="Typ" prefWidth="80" />
+      <TableColumn fx:id="timestampColumn" text="Zeit" prefWidth="120" />
+    </columns>
+  </TableView>
+  <Label fx:id="okLabel" text="Alles ok" visible="false" style="-fx-font-size: 16px; -fx-text-fill: green;" />
+</VBox>
