@@ -128,20 +128,14 @@ public class ZabbixServer implements Server {
   }
 
   private Message createErrorMessage(String msg) {
-    return new Message() {
-      @Override
-      public String getTitle() { return "Zabbix Fehler"; }
-      @Override
-      public String getMessage() { return msg; }
-      @Override
-      public String hostname() { return "-"; }
-      @Override
-      public Classification getClassification() { return Classification.UNKNOWN; }
-      @Override
-      public Instant getTimestamp() { return Instant.now(); }
-      @Override
-      public Map<String, String> getCustomFields() { return Map.of(); }
-    };
+    return new ZabbixMessage(
+        "Zabbix Fehler",
+        msg,
+        "-",
+        Classification.UNKNOWN,
+        Instant.now(),
+        Map.of()
+    );
   }
 
   private Message jsonToMessage(JSONObject problem) {
@@ -153,20 +147,12 @@ public class ZabbixServer implements Server {
     else if (problem.optInt("severity", 4) == 1) classification = Classification.INFO;
     else classification = Classification.CRITICAL;
     Instant timestamp = Instant.ofEpochSecond(problem.optLong("clock", Instant.now().getEpochSecond()));
-    return new Message() {
-      @Override
-      public String getTitle() { return title; }
-      @Override
-      public String getMessage() { return msg; }
-      @Override
-      public String hostname() { return host; }
-      @Override
-      public Classification getClassification() { return classification; }
-      @Override
-      public Instant getTimestamp() { return timestamp; }
-      @Override
-      public Map<String, String> getCustomFields() { return Map.of(); }
-    };
+    // CustomFields aus JSON übernehmen
+    Map<String, String> customFields = Map.of();
+    if (problem.has("r_ns")) {
+        customFields = Map.of("r_ns", String.valueOf(problem.optInt("r_ns", 0)));
+    }
+    return new ZabbixMessage(title, msg, host, classification, timestamp, customFields);
   }
 
   @Override
