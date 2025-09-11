@@ -9,9 +9,6 @@
     <Root level="info">
       <AppenderRef ref="Console"/>
     </Root>
-    <Logger name="de.paschty.obsero.monitor.zabbix.ZabbixServer" level="debug" additivity="false">
-      <AppenderRef ref="Console"/>
-    </Logger>
   </Loggers>
 </Configuration>
 
