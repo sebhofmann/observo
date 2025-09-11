@@ -1,9 +1,9 @@
-package de.paschty.obsero.monitor.zabbix;
+package de.paschty.observo.monitor.zabbix;
 
-import de.paschty.obsero.monitor.Classification;
-import de.paschty.obsero.monitor.Configuration;
-import de.paschty.obsero.monitor.Message;
-import de.paschty.obsero.monitor.Server;
+import de.paschty.observo.monitor.Classification;
+import de.paschty.observo.monitor.Configuration;
+import de.paschty.observo.monitor.Message;
+import de.paschty.observo.monitor.Server;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;

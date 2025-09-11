@@ -1,6 +1,6 @@
-package de.paschty.obsero;
+package de.paschty.observo;
 
-import de.paschty.obsero.monitor.Configuration;
+import de.paschty.observo.monitor.Configuration;
 import java.util.Locale;
 
 public class AppSettings {

@@ -5,9 +5,9 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>de.paschty</groupId>
-  <artifactId>obsero</artifactId>
+  <artifactId>observo</artifactId>
   <version>0.1-SNAPSHOT</version>
-  <name>obsero</name>
+  <name>observo</name>
   <licenses>
     <license>
       <name>GNU General Public License, version 3</name>
@@ -90,10 +90,10 @@
             <!-- Default configuration for running with: mvn clean javafx:run -->
             <id>default-cli</id>
             <configuration>
-              <mainClass>de.paschty.obsero/de.paschty.obsero.ObseroApplication</mainClass>
-              <launcher>obsero</launcher>
+              <mainClass>de.paschty.observo/de.paschty.observo.ObservoApplication</mainClass>
+              <launcher>observo</launcher>
               <jlinkZipName>app</jlinkZipName>
-              <jlinkImageName>obsero</jlinkImageName>
+              <jlinkImageName>observo</jlinkImageName>
               <noManPages>true</noManPages>
               <stripDebug>true</stripDebug>
               <noHeaderFiles>true</noHeaderFiles>

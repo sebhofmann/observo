@@ -1,11 +1,11 @@
-package de.paschty.obsero;
+package de.paschty.observo;
 
 import static javafx.scene.control.ButtonBar.ButtonData.OK_DONE;
 
-import de.paschty.obsero.monitor.Message;
-import de.paschty.obsero.monitor.Server;
-import de.paschty.obsero.monitor.zabbix.ZabbixServer;
-import de.paschty.obsero.monitor.zabbix.ZabbixServerConfiguration;
+import de.paschty.observo.monitor.Message;
+import de.paschty.observo.monitor.Server;
+import de.paschty.observo.monitor.zabbix.ZabbixServer;
+import de.paschty.observo.monitor.zabbix.ZabbixServerConfiguration;
 
 import javafx.animation.PauseTransition;
 import javafx.collections.FXCollections;
@@ -14,7 +14,6 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.ButtonBar.ButtonData;
 import javafx.scene.control.DialogPane;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
@@ -88,7 +87,7 @@ public class MainController {
     try {
       // ResourceBundle für die aktuelle Sprache laden (hier: Deutsch, kann dynamisch gemacht werden)
       java.util.Locale locale = java.util.Locale.getDefault();
-      ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.obsero.messages", locale);
+      ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", locale);
       FXMLLoader loader = new FXMLLoader(getClass().getResource("server-config-view.fxml"), bundle);
       Parent root = loader.load();
       ServerConfigController controller = loader.getController();
@@ -112,7 +111,7 @@ public class MainController {
   protected void onSettingsMenuClick() {
     try {
       java.util.Locale locale = LanguageManager.getLocale();
-      ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.obsero.messages", locale);
+      ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", locale);
       FXMLLoader loader = new FXMLLoader(getClass().getResource("settings-view.fxml"), bundle);
       Parent root = loader.load();
       Stage stage = new Stage();
@@ -159,7 +158,7 @@ public class MainController {
             }
           }
           // Kontextmenü nur für nicht-ACKNOWLEDGED Nachrichten
-          if (msg != null && !empty && msg.getClassification() != de.paschty.obsero.monitor.Classification.ACKNOWLEDGED) {
+          if (msg != null && !empty && msg.getClassification() != de.paschty.observo.monitor.Classification.ACKNOWLEDGED) {
             ContextMenu contextMenu = new ContextMenu();
             MenuItem acknowledgeItem = new MenuItem("Acknowledge");
             acknowledgeItem.setOnAction(e -> {
@@ -220,11 +219,11 @@ public class MainController {
     List<Message> messages = server.pollMessages();
     boolean hasMessages = messages != null && !messages.isEmpty();
     boolean hasCriticalMessages = messages.stream().anyMatch(msg ->
-        msg.getClassification() == de.paschty.obsero.monitor.Classification.CRITICAL
-        || msg.getClassification() == de.paschty.obsero.monitor.Classification.WARNING);
+        msg.getClassification() == de.paschty.observo.monitor.Classification.CRITICAL
+        || msg.getClassification() == de.paschty.observo.monitor.Classification.WARNING);
     // Notification/Sound nur bei Wechsel von keine zu mindestens eine kritische Nachricht
     if (!hadCriticalMessages && hasCriticalMessages) {
-        ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.obsero.messages", LanguageManager.getLocale());
+        ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", LanguageManager.getLocale());
         String newMessageTitle = bundle.getString("notification.newMessages.title");
         String newMessageText = bundle.getString("notification.newMessages.text");
         Platform.runLater(() -> {
@@ -235,7 +234,7 @@ public class MainController {
     hadMessages = hasMessages;
     hadCriticalMessages = hasCriticalMessages;
     Platform.runLater(() -> {
-        ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.obsero.messages", LanguageManager.getLocale());
+        ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", LanguageManager.getLocale());
         if (!hasMessages) {
             messagesTable.setVisible(false);
             okLabel.setVisible(true);
@@ -292,7 +291,7 @@ public class MainController {
   private void reloadMainView() {
     try {
       java.util.Locale locale = LanguageManager.getLocale();
-      ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.obsero.messages", locale);
+      ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", locale);
       FXMLLoader loader = new FXMLLoader(getClass().getResource("main-view.fxml"), bundle);
       Parent root = loader.load();
       Scene scene = rootVBox.getScene();
@@ -333,7 +332,7 @@ public class MainController {
   @FXML
   private void onAcknowledgeMenuClick() {
     logger.info("Acknowledge menu click triggered");
-    ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.obsero.messages", LanguageManager.getLocale());
+    ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", LanguageManager.getLocale());
     Message selectedMessage = messagesTable.getSelectionModel().getSelectedItem();
     if (selectedMessage == null) {
       logger.warn("No message selected");
@@ -344,7 +343,8 @@ public class MainController {
       return;
     }
     try {
-      FXMLLoader loader = new FXMLLoader(getClass().getResource("/de/paschty/obsero/acknowledge-dialog.fxml"), bundle);
+      FXMLLoader loader = new FXMLLoader(getClass().getResource(
+          "/de/paschty/observo/acknowledge-dialog.fxml"), bundle);
       DialogPane dialogPane = loader.load();
       AcknowledgeDialogController dialogController = loader.getController();
       Dialog<ButtonType> dialog = new Dialog<>();

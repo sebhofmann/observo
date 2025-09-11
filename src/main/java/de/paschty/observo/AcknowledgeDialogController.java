@@ -1,8 +1,7 @@
-package de.paschty.obsero;
+package de.paschty.observo;
 
 import javafx.fxml.FXML;
 import javafx.scene.control.TextArea;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.DialogPane;
 
 public class AcknowledgeDialogController {

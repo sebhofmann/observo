@@ -8,7 +8,7 @@
 <?import javafx.scene.control.TableColumn?>
 <?import javafx.scene.control.Label?>
 
-<VBox xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="de.paschty.obsero.MainController" fx:id="rootVBox" prefWidth="1000" prefHeight="400">
+<VBox xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="de.paschty.observo.MainController" fx:id="rootVBox" prefWidth="1000" prefHeight="400">
   <MenuBar>
     <Menu text="%main.menu.file">
       <MenuItem text="%main.menu.serverConfig" onAction="#onServerConfigMenuClick" />

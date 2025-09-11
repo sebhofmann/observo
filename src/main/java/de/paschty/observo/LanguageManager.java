@@ -1,4 +1,4 @@
-package de.paschty.obsero;
+package de.paschty.observo;
 
 import java.util.Locale;
 

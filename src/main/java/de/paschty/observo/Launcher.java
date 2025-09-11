@@ -1,10 +1,10 @@
-package de.paschty.obsero;
+package de.paschty.observo;
 
 import javafx.application.Application;
 
 public class Launcher {
 
   public static void main(String[] args) {
-    Application.launch(ObseroApplication.class, args);
+    Application.launch(ObservoApplication.class, args);
   }
 }

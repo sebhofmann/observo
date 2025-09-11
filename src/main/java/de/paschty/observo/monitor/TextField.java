@@ -1,16 +1,16 @@
-package de.paschty.obsero.monitor;
+package de.paschty.observo.monitor;
 
-public final class PasswordField implements ConfigurationValue<String> {
+public final class TextField implements ConfigurationValue<String> {
 
   private final String key;
   private String value;
   private final String helpKey;
 
-  public PasswordField(String key, String defaultValue) {
+  public TextField(String key, String defaultValue) {
     this(key, defaultValue, null);
   }
 
-  public PasswordField(String key, String defaultValue, String helpKey) {
+  public TextField(String key, String defaultValue, String helpKey) {
     this.value = defaultValue;
     this.key = key;
     this.helpKey = helpKey;
@@ -35,5 +35,4 @@ public final class PasswordField implements ConfigurationValue<String> {
   public String getHelpKey() {
     return helpKey;
   }
-
 }

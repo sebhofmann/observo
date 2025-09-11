@@ -2,7 +2,7 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<DialogPane xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="de.paschty.obsero.AcknowledgeDialogController">
+<DialogPane xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="de.paschty.observo.AcknowledgeDialogController">
   <content>
     <VBox spacing="10">
       <Label text="Optionaler Kommentar zur Bestätigung:" />

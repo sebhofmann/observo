@@ -1,4 +1,4 @@
-package de.paschty.obsero;
+package de.paschty.observo;
 
 import java.io.InputStream;
 import javafx.application.Application;
@@ -7,11 +7,10 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.image.Image;
 import javafx.stage.Stage;
-import javafx.application.Platform;
 
 import java.io.IOException;
 
-public class ObseroApplication extends Application {
+public class ObservoApplication extends Application {
 
   @Override
   public void start(Stage stage) throws IOException {
@@ -22,15 +21,15 @@ public class ObseroApplication extends Application {
     LanguageManager.setLocale(appSettings.getLocale());
     java.util.Locale locale = appSettings.getLocale();
     java.util.ResourceBundle bundle = java.util.ResourceBundle.getBundle(
-        "de.paschty.obsero.messages", locale);
-    FXMLLoader fxmlLoader = new FXMLLoader(ObseroApplication.class.getResource("main-view.fxml"),
+        "de.paschty.observo.messages", locale);
+    FXMLLoader fxmlLoader = new FXMLLoader(ObservoApplication.class.getResource("main-view.fxml"),
         bundle);
     Parent root = fxmlLoader.load();
     Scene scene = new Scene(root, appSettings.getWindowWidth(), appSettings.getWindowHeight());
     stage.setTitle(bundle.getString("main.title"));
     stage.setScene(scene);
     // Icon setzen
-    try (InputStream is = getClass().getClassLoader().getResourceAsStream("obsero.png")) {
+    try (InputStream is = getClass().getClassLoader().getResourceAsStream("observo.png")) {
       stage.getIcons().add(new Image(is));
     }
     if (appSettings.getWindowX() >= 0 && appSettings.getWindowY() >= 0) {

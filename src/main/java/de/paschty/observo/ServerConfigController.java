@@ -1,11 +1,11 @@
-package de.paschty.obsero;
+package de.paschty.observo;
 
-import de.paschty.obsero.monitor.Configuration;
-import de.paschty.obsero.monitor.ConfigurationValue;
-import de.paschty.obsero.monitor.TextField;
-import de.paschty.obsero.monitor.PasswordField;
-import de.paschty.obsero.monitor.NumberField;
-import de.paschty.obsero.monitor.BooleanField;
+import de.paschty.observo.monitor.Configuration;
+import de.paschty.observo.monitor.ConfigurationValue;
+import de.paschty.observo.monitor.TextField;
+import de.paschty.observo.monitor.PasswordField;
+import de.paschty.observo.monitor.NumberField;
+import de.paschty.observo.monitor.BooleanField;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
@@ -14,7 +14,7 @@ import javafx.stage.Stage;
 import javafx.fxml.Initializable;
 import javafx.collections.FXCollections;
 import javafx.scene.control.ComboBox;
-import de.paschty.obsero.monitor.zabbix.ZabbixServerConfiguration;
+import de.paschty.observo.monitor.zabbix.ZabbixServerConfiguration;
 import java.net.URL;
 import java.util.ResourceBundle;
 import java.util.HashMap;

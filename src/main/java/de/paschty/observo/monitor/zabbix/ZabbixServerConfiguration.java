@@ -1,10 +1,10 @@
-package de.paschty.obsero.monitor.zabbix;
+package de.paschty.observo.monitor.zabbix;
 
-import de.paschty.obsero.monitor.Configuration;
-import de.paschty.obsero.monitor.ConfigurationValue;
-import de.paschty.obsero.monitor.PasswordField;
-import de.paschty.obsero.monitor.TextField;
-import de.paschty.obsero.monitor.NumberField;
+import de.paschty.observo.monitor.Configuration;
+import de.paschty.observo.monitor.ConfigurationValue;
+import de.paschty.observo.monitor.PasswordField;
+import de.paschty.observo.monitor.TextField;
+import de.paschty.observo.monitor.NumberField;
 import java.util.List;
 
 public class ZabbixServerConfiguration implements Configuration {

@@ -1,10 +1,9 @@
-package de.paschty.obsero;
+package de.paschty.observo;
 
 import javafx.fxml.FXML;
 import javafx.scene.control.ComboBox;
 import javafx.stage.Stage;
 import java.util.Locale;
-import de.paschty.obsero.LanguageManager;
 
 public class SettingsController {
     @FXML

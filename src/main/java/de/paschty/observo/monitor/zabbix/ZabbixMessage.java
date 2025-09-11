@@ -1,7 +1,7 @@
-package de.paschty.obsero.monitor.zabbix;
+package de.paschty.observo.monitor.zabbix;
 
-import de.paschty.obsero.monitor.Classification;
-import de.paschty.obsero.monitor.Message;
+import de.paschty.observo.monitor.Classification;
+import de.paschty.observo.monitor.Message;
 import java.time.Instant;
 import java.util.Map;
 

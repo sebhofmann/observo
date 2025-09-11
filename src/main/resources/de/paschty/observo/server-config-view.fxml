@@ -3,7 +3,7 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.control.*?>
 
-<VBox xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="de.paschty.obsero.ServerConfigController" spacing="10" alignment="CENTER" prefWidth="400" prefHeight="300" style="-fx-padding: 20;">
+<VBox xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="de.paschty.observo.ServerConfigController" spacing="10" alignment="CENTER" prefWidth="400" prefHeight="300" style="-fx-padding: 20;">
   <Label text="%serverConfig.title" style="-fx-font-size: 18px;" />
   <ComboBox fx:id="serverTypeComboBox" prefWidth="250" />
   <VBox fx:id="formContainer" spacing="8" alignment="CENTER" maxWidth="300" style="-fx-padding: 10; -fx-background-color: #f8f8f8; -fx-border-radius: 6; -fx-background-radius: 6; -fx-border-color: #cccccc;" />

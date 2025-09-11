@@ -1,7 +1,7 @@
-package de.paschty.obsero;
+package de.paschty.observo;
 
-import de.paschty.obsero.monitor.Configuration;
-import de.paschty.obsero.monitor.ConfigurationValue;
+import de.paschty.observo.monitor.Configuration;
+import de.paschty.observo.monitor.ConfigurationValue;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -9,8 +9,8 @@ import java.util.Locale;
 import java.util.Properties;
 
 public class SettingsManager {
-    private static final String CONFIG_DIR = System.getProperty("user.home") + "/.config/obsero";
-    private static final String CONFIG_FILE = CONFIG_DIR + "/obsero.properties";
+    private static final String CONFIG_DIR = System.getProperty("user.home") + "/.config/observo";
+    private static final String CONFIG_FILE = CONFIG_DIR + "/observo.properties";
 
     public static void load() {
         Properties props = new Properties();
@@ -27,17 +27,17 @@ public class SettingsManager {
                 settings.setWindowHeight(Double.parseDouble(props.getProperty("window.height", "400")));
                 // Server-Konfiguration laden
                 // Beispiel für ZabbixServerConfiguration
-                de.paschty.obsero.monitor.zabbix.ZabbixServerConfiguration config = new de.paschty.obsero.monitor.zabbix.ZabbixServerConfiguration();
+                de.paschty.observo.monitor.zabbix.ZabbixServerConfiguration config = new de.paschty.observo.monitor.zabbix.ZabbixServerConfiguration();
                 for (var value : config.getValues()) {
                     String v = props.getProperty(value.getKey());
                     if (v != null) {
-                        if (value instanceof de.paschty.obsero.monitor.TextField tf) {
+                        if (value instanceof de.paschty.observo.monitor.TextField tf) {
                             tf.setValue(v);
-                        } else if (value instanceof de.paschty.obsero.monitor.PasswordField pf) {
+                        } else if (value instanceof de.paschty.observo.monitor.PasswordField pf) {
                             pf.setValue(v);
-                        } else if (value instanceof de.paschty.obsero.monitor.NumberField nf) {
+                        } else if (value instanceof de.paschty.observo.monitor.NumberField nf) {
                             try { nf.setValue(Integer.parseInt(v)); } catch (NumberFormatException ignored) {}
-                        } else if (value instanceof de.paschty.obsero.monitor.BooleanField bf) {
+                        } else if (value instanceof de.paschty.observo.monitor.BooleanField bf) {
                             bf.setValue(Boolean.parseBoolean(v));
                         }
                     }
@@ -49,7 +49,7 @@ public class SettingsManager {
         } else {
             // Defaults setzen
             settings.setLocale(Locale.getDefault());
-            settings.setServerConfiguration(new de.paschty.obsero.monitor.zabbix.ZabbixServerConfiguration());
+            settings.setServerConfiguration(new de.paschty.observo.monitor.zabbix.ZabbixServerConfiguration());
         }
     }
 
@@ -71,7 +71,7 @@ public class SettingsManager {
         try {
             Files.createDirectories(Path.of(CONFIG_DIR));
             try (OutputStream out = new FileOutputStream(CONFIG_FILE)) {
-                props.store(out, "Obsero Einstellungen");
+                props.store(out, "observo Einstellungen");
             }
         } catch (IOException e) {
             e.printStackTrace();

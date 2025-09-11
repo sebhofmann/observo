@@ -1,28 +1,28 @@
-package de.paschty.obsero.monitor;
+package de.paschty.observo.monitor;
 
-public final class BooleanField implements ConfigurationValue<Boolean> {
+public final class PasswordField implements ConfigurationValue<String> {
 
   private final String key;
-  private Boolean value;
+  private String value;
   private final String helpKey;
 
-  public BooleanField(String key, Boolean defaultValue) {
+  public PasswordField(String key, String defaultValue) {
     this(key, defaultValue, null);
   }
 
-  public BooleanField(String key, Boolean defaultValue, String helpKey) {
+  public PasswordField(String key, String defaultValue, String helpKey) {
     this.value = defaultValue;
     this.key = key;
     this.helpKey = helpKey;
   }
 
   @Override
-  public Boolean getValue() {
+  public String getValue() {
     return value;
   }
 
   @Override
-  public void setValue(Boolean value) {
+  public void setValue(String value) {
     this.value = value;
   }
 

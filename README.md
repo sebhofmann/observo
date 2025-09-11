@@ -1,6 +1,6 @@
-# Obsero
+# observo
 
-Obsero is a JavaFX application for monitoring and displaying Zabbix messages.
+observo is a JavaFX application for monitoring and displaying Zabbix messages.
 
 ## Prerequisites
 - Java 17 or higher
@@ -18,10 +18,10 @@ Obsero is a JavaFX application for monitoring and displaying Zabbix messages.
 
 2. **Run the application:**
 
-   The generated image is located in `target/obsero/`. You can start the application with:
+   The generated image is located in `target/observo/`. You can start the application with:
 
    ```sh
-   target/obsero/bin/obsero
+   target/observo/bin/observo
    ```
 
 ## Configuration

@@ -1,4 +1,4 @@
-package de.paschty.obsero.monitor;
+package de.paschty.observo.monitor;
 
 import java.time.Instant;
 import java.util.Map;

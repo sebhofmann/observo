@@ -1,4 +1,4 @@
-module de.paschty.obsero {
+module de.paschty.observo {
   requires javafx.controls;
   requires javafx.fxml;
 
@@ -10,6 +10,6 @@ module de.paschty.obsero {
   requires javafx.media;
   requires java.desktop;
 
-  opens de.paschty.obsero to javafx.fxml;
-  exports de.paschty.obsero;
+  opens de.paschty.observo to javafx.fxml;
+  exports de.paschty.observo;
 }

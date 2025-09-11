@@ -1,4 +1,4 @@
-package de.paschty.obsero.monitor;
+package de.paschty.observo.monitor;
 
 public sealed interface ConfigurationValue<T> permits NumberField, TextField, PasswordField,
     BooleanField {
