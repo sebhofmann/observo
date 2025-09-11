@@ -122,13 +122,15 @@ public class MainController {
         super.updateItem(msg, empty);
         if (msg == null || empty) {
           setStyle("");
+        } else if (isSelected()) {
+          setStyle("-fx-background-color: #1976d2; -fx-text-fill: white;");
         } else {
           switch (msg.getClassification()) {
-            case CRITICAL -> setStyle("-fx-background-color: #ffcccc;");
-            case WARNING -> setStyle("-fx-background-color: #fff8dc;");
-            case INFO -> setStyle("-fx-background-color: #e6f0ff;");
-            case RECOVERY -> setStyle("-fx-background-color: #e6ffe6;");
-            case ACKNOWLEDGED -> setStyle("-fx-background-color: #eeeeee;");
+            case CRITICAL -> setStyle("-fx-background-color: #ffcccc; -fx-text-fill: black;");
+            case WARNING -> setStyle("-fx-background-color: #fff8dc; -fx-text-fill: black;");
+            case INFO -> setStyle("-fx-background-color: #e6f0ff; -fx-text-fill: black;");
+            case RECOVERY -> setStyle("-fx-background-color: #e6ffe6; -fx-text-fill: black;");
+            case ACKNOWLEDGED -> setStyle("-fx-background-color: #eeeeee; -fx-text-fill: black;");
             case UNKNOWN -> setStyle("");
           }
         }
