@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.Map;
 
 public class ZabbixMessage implements Message {
+    private final String id;
     private final String title;
     private final String message;
     private final String hostname;
@@ -13,7 +14,8 @@ public class ZabbixMessage implements Message {
     private final Instant timestamp;
     private final Map<String, String> customFields;
 
-    public ZabbixMessage(String title, String message, String hostname, Classification classification, Instant timestamp, Map<String, String> customFields) {
+    public ZabbixMessage(String id, String title, String message, String hostname, Classification classification, Instant timestamp, Map<String, String> customFields) {
+        this.id = id;
         this.title = title;
         this.message = message;
         this.hostname = hostname;
@@ -22,6 +24,8 @@ public class ZabbixMessage implements Message {
         this.customFields = customFields;
     }
 
+    @Override
+    public String getId() { return id; }
     @Override
     public String getTitle() { return title; }
     @Override
@@ -57,6 +61,7 @@ public class ZabbixMessage implements Message {
     }
 
     public static ZabbixMessage fromJson(org.json.JSONObject problem) {
+        String id = problem.optString("eventid", "");
         String title = problem.optString("name", "Problem");
         String msg = problem.optString("eventid", "") + ": " + problem.optString("name", "");
         String host = problem.optString("host", "");
@@ -66,6 +71,6 @@ public class ZabbixMessage implements Message {
         for (String key : problem.keySet()) {
             customFields.put(key, problem.optString(key, ""));
         }
-        return new ZabbixMessage(title, msg, host, classification, timestamp, customFields);
+        return new ZabbixMessage(id, title, msg, host, classification, timestamp, customFields);
     }
 }

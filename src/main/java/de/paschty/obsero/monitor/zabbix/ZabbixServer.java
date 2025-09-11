@@ -123,6 +123,7 @@ public class ZabbixServer implements Server {
 
   private Message createErrorMessage(String msg) {
     return new ZabbixMessage(
+        "error", // ID für Fehlernachrichten
         "Zabbix Fehler",
         msg,
         "-",
@@ -130,23 +131,6 @@ public class ZabbixServer implements Server {
         Instant.now(),
         Map.of()
     );
-  }
-
-  private Message jsonToMessage(JSONObject problem) {
-    String title = problem.optString("name", "Problem");
-    String msg = problem.optString("eventid", "") + ": " + problem.optString("name", "");
-    String host = problem.optString("host", "");
-    final Classification classification;
-    if (problem.optInt("severity", 4) == 2) classification = Classification.WARNING;
-    else if (problem.optInt("severity", 4) == 1) classification = Classification.INFO;
-    else classification = Classification.CRITICAL;
-    Instant timestamp = Instant.ofEpochSecond(problem.optLong("clock", Instant.now().getEpochSecond()));
-    // CustomFields aus JSON übernehmen
-    Map<String, String> customFields = Map.of();
-    if (problem.has("r_ns")) {
-        customFields = Map.of("r_ns", String.valueOf(problem.optInt("r_ns", 0)));
-    }
-    return new ZabbixMessage(title, msg, host, classification, timestamp, customFields);
   }
 
   @Override

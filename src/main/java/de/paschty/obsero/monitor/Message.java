@@ -5,6 +5,7 @@ import java.util.Map;
 
 public interface Message {
 
+  String getId();
   String getTitle();
   String getMessage();
   String hostname();
