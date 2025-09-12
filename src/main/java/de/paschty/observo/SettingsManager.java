@@ -1,5 +1,8 @@
 package de.paschty.observo;
 
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+
 import de.paschty.observo.monitor.Configuration;
 import de.paschty.observo.monitor.ConfigurationValue;
 import java.io.*;
@@ -9,15 +12,17 @@ import java.util.Locale;
 import java.util.Properties;
 
 public class SettingsManager {
-    private static final String CONFIG_DIR = System.getProperty("user.home") + "/.config/observo";
-    private static final String CONFIG_FILE = CONFIG_DIR + "/observo.properties";
+
+  private static final Path CONFIG_DIR = Path.of(System.getProperty("user.home"))
+      .resolve(".config/")
+      .resolve("observo/");
+  private static final Path CONFIG_FILE = CONFIG_DIR.resolve("observo.properties");
 
     public static void load() {
         Properties props = new Properties();
-        File file = new File(CONFIG_FILE);
         AppSettings settings = AppSettings.getInstance();
-        if (file.exists()) {
-            try (InputStream in = new FileInputStream(file)) {
+        if (Files.exists(CONFIG_FILE)) {
+            try (InputStream in = Files.newInputStream(CONFIG_FILE)) {
                 props.load(in);
                 String lang = props.getProperty("language", Locale.getDefault().getLanguage());
                 settings.setLocale(new Locale(lang));
@@ -69,8 +74,8 @@ public class SettingsManager {
             }
         }
         try {
-            Files.createDirectories(Path.of(CONFIG_DIR));
-            try (OutputStream out = new FileOutputStream(CONFIG_FILE)) {
+            Files.createDirectories(CONFIG_DIR);
+            try (OutputStream out = Files.newOutputStream(CONFIG_FILE, CREATE, TRUNCATE_EXISTING)) {
                 props.store(out, "observo Einstellungen");
             }
         } catch (IOException e) {
