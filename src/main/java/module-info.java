@@ -9,7 +9,9 @@ module de.paschty.observo {
   requires org.apache.logging.log4j.core;
   requires javafx.media;
   requires java.desktop;
+  requires com.google.guice;
 
   opens de.paschty.observo to javafx.fxml;
+  opens de.paschty.observo.monitor.zabbix to com.google.guice;
   exports de.paschty.observo;
 }

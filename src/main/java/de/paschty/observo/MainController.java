@@ -2,9 +2,9 @@ package de.paschty.observo;
 
 import static javafx.scene.control.ButtonBar.ButtonData.OK_DONE;
 
+import com.google.inject.Inject;
 import de.paschty.observo.monitor.Message;
 import de.paschty.observo.monitor.Server;
-import de.paschty.observo.monitor.zabbix.ZabbixServer;
 import de.paschty.observo.monitor.zabbix.ZabbixServerConfiguration;
 
 import javafx.animation.PauseTransition;
@@ -43,6 +43,29 @@ import org.apache.logging.log4j.Logger;
 
 public class MainController {
 
+  private final AppSettings appSettings;
+  private final SettingsManager settingsManager;
+  private final LanguageManager languageManager;
+  private final FXMLLoaderFactory fxmlLoaderFactory;
+  private final Server server;
+
+  @Inject
+  public MainController(AppSettings appSettings,
+                        SettingsManager settingsManager,
+                        LanguageManager languageManager,
+                        FXMLLoaderFactory fxmlLoaderFactory,
+                        Server server) {
+    this.appSettings = appSettings;
+    this.settingsManager = settingsManager;
+    this.languageManager = languageManager;
+    this.fxmlLoaderFactory = fxmlLoaderFactory;
+    this.server = server;
+    var configuration = appSettings.getServerConfiguration();
+    if (configuration != null) {
+      this.server.setConfiguration(configuration);
+    }
+  }
+
   @FXML
   private Label welcomeText;
 
@@ -73,8 +96,6 @@ public class MainController {
   private boolean hadMessages = false;
   private boolean hadCriticalMessages = false;
 
-  private Server server;
-
   private static final Logger logger = LogManager.getLogger(MainController.class);
 
   @FXML
@@ -85,13 +106,13 @@ public class MainController {
   @FXML
   protected void onServerConfigMenuClick() {
     try {
-      // ResourceBundle für die aktuelle Sprache laden (hier: Deutsch, kann dynamisch gemacht werden)
-      java.util.Locale locale = java.util.Locale.getDefault();
+      // ResourceBundle für die aktuelle Sprache laden
+      java.util.Locale locale = languageManager.getLocale();
       ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", locale);
-      FXMLLoader loader = new FXMLLoader(getClass().getResource("server-config-view.fxml"), bundle);
+      FXMLLoader loader = fxmlLoaderFactory.create(getClass().getResource("server-config-view.fxml"), bundle);
       Parent root = loader.load();
       ServerConfigController controller = loader.getController();
-      controller.setConfiguration(AppSettings.getInstance().getServerConfiguration());
+      controller.setConfiguration(appSettings.getServerConfiguration());
       Stage stage = new Stage();
       stage.setTitle(bundle.getString("serverConfig.title"));
       stage.setScene(new Scene(root));
@@ -100,7 +121,7 @@ public class MainController {
       restartPollingIfNeeded();
       // Server-Konfiguration nach Dialog aktualisieren
       if (server != null) {
-        server.setConfiguration(AppSettings.getInstance().getServerConfiguration());
+        server.setConfiguration(appSettings.getServerConfiguration());
       }
     } catch (IOException e) {
       e.printStackTrace();
@@ -110,9 +131,9 @@ public class MainController {
   @FXML
   protected void onSettingsMenuClick() {
     try {
-      java.util.Locale locale = LanguageManager.getLocale();
+      java.util.Locale locale = languageManager.getLocale();
       ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", locale);
-      FXMLLoader loader = new FXMLLoader(getClass().getResource("settings-view.fxml"), bundle);
+      FXMLLoader loader = fxmlLoaderFactory.create(getClass().getResource("settings-view.fxml"), bundle);
       Parent root = loader.load();
       Stage stage = new Stage();
       stage.setTitle(bundle.getString("settings.title"));
@@ -203,7 +224,7 @@ public class MainController {
   }
 
   private int getPollInterval() {
-    var config = AppSettings.getInstance().getServerConfiguration();
+    var config = appSettings.getServerConfiguration();
     if (config instanceof ZabbixServerConfiguration zabbixConfig) {
       return zabbixConfig.getPollIntervalMillis().getValue();
     }
@@ -212,10 +233,6 @@ public class MainController {
 
   private void loadMessages() {
     // Server verwenden
-    if (server == null) {
-      server = new ZabbixServer();
-      server.setConfiguration(AppSettings.getInstance().getServerConfiguration());
-    }
     List<Message> messages = server.pollMessages();
     boolean hasMessages = messages != null && !messages.isEmpty();
     boolean hasCriticalMessages = messages.stream().anyMatch(msg ->
@@ -223,7 +240,7 @@ public class MainController {
         || msg.getClassification() == de.paschty.observo.monitor.Classification.WARNING);
     // Notification/Sound nur bei Wechsel von keine zu mindestens eine kritische Nachricht
     if (!hadCriticalMessages && hasCriticalMessages) {
-        ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", LanguageManager.getLocale());
+        ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", languageManager.getLocale());
         String newMessageTitle = bundle.getString("notification.newMessages.title");
         String newMessageText = bundle.getString("notification.newMessages.text");
         Platform.runLater(() -> {
@@ -234,7 +251,7 @@ public class MainController {
     hadMessages = hasMessages;
     hadCriticalMessages = hasCriticalMessages;
     Platform.runLater(() -> {
-        ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", LanguageManager.getLocale());
+        ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", languageManager.getLocale());
         if (!hasMessages) {
             messagesTable.setVisible(false);
             okLabel.setVisible(true);
@@ -290,9 +307,9 @@ public class MainController {
 
   private void reloadMainView() {
     try {
-      java.util.Locale locale = LanguageManager.getLocale();
+      java.util.Locale locale = languageManager.getLocale();
       ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", locale);
-      FXMLLoader loader = new FXMLLoader(getClass().getResource("main-view.fxml"), bundle);
+      FXMLLoader loader = fxmlLoaderFactory.create(getClass().getResource("main-view.fxml"), bundle);
       Parent root = loader.load();
       Scene scene = rootVBox.getScene();
       scene.setRoot(root);
@@ -320,19 +337,18 @@ public class MainController {
     stopPolling();
     // Fensterposition und -größe speichern
     Stage stage = (Stage) rootVBox.getScene().getWindow();
-    AppSettings appSettings = AppSettings.getInstance();
     appSettings.setWindowX(stage.getX());
     appSettings.setWindowY(stage.getY());
     appSettings.setWindowWidth(stage.getWidth());
     appSettings.setWindowHeight(stage.getHeight());
-    SettingsManager.save();
+    settingsManager.save();
     Platform.exit();
   }
 
   @FXML
   private void onAcknowledgeMenuClick() {
     logger.info("Acknowledge menu click triggered");
-    ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", LanguageManager.getLocale());
+    ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", languageManager.getLocale());
     Message selectedMessage = messagesTable.getSelectionModel().getSelectedItem();
     if (selectedMessage == null) {
       logger.warn("No message selected");
@@ -343,7 +359,7 @@ public class MainController {
       return;
     }
     try {
-      FXMLLoader loader = new FXMLLoader(getClass().getResource(
+      FXMLLoader loader = fxmlLoaderFactory.create(getClass().getResource(
           "/de/paschty/observo/acknowledge-dialog.fxml"), bundle);
       DialogPane dialogPane = loader.load();
       AcknowledgeDialogController dialogController = loader.getController();

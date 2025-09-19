@@ -1,5 +1,6 @@
 package de.paschty.observo;
 
+import com.google.inject.Inject;
 import de.paschty.observo.monitor.Configuration;
 import de.paschty.observo.monitor.ConfigurationValue;
 import de.paschty.observo.monitor.TextField;
@@ -22,6 +23,8 @@ import java.util.Map;
 
 public class ServerConfigController implements Initializable {
 
+  private final AppSettings appSettings;
+  private final SettingsManager settingsManager;
   private final Map<ConfigurationValue<?>, Control> valueControls = new HashMap<>();
   @FXML
   private VBox formContainer;
@@ -30,14 +33,24 @@ public class ServerConfigController implements Initializable {
   private Configuration configuration;
   private ResourceBundle resources;
 
+  @Inject
+  public ServerConfigController(AppSettings appSettings, SettingsManager settingsManager) {
+    this.appSettings = appSettings;
+    this.settingsManager = settingsManager;
+  }
+
   @Override
   public void initialize(URL location, ResourceBundle resources) {
     this.resources = resources;
     serverTypeComboBox.setItems(FXCollections.observableArrayList("Zabbix"));
     serverTypeComboBox.getSelectionModel().selectFirst();
     serverTypeComboBox.setOnAction(e -> onServerTypeChanged());
-    // Initiales Formular anzeigen
-    setConfiguration(new ZabbixServerConfiguration());
+    Configuration currentConfiguration = appSettings.getServerConfiguration();
+    if (currentConfiguration != null) {
+      setConfiguration(currentConfiguration);
+    } else {
+      setConfiguration(new ZabbixServerConfiguration());
+    }
   }
 
   private void onServerTypeChanged() {
@@ -128,10 +141,8 @@ public class ServerConfigController implements Initializable {
         booleanField.setValue(((CheckBox) control).isSelected());
       }
     }
-    // Globale Einstellungen setzen
-    AppSettings.getInstance().setServerConfiguration(configuration);
-    // Einstellungen persistent speichern
-    SettingsManager.save();
+    appSettings.setServerConfiguration(configuration);
+    settingsManager.save();
     Stage stage = (Stage) formContainer.getScene().getWindow();
     stage.close();
   }

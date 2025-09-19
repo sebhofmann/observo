@@ -1,16 +1,25 @@
 package de.paschty.observo;
 
+import com.google.inject.Inject;
 import java.util.Locale;
 
 public class LanguageManager {
-    private static Locale locale = Locale.getDefault();
 
-    public static Locale getLocale() {
+    private final AppSettings appSettings;
+    private Locale locale;
+
+    @Inject
+    public LanguageManager(AppSettings appSettings) {
+        this.appSettings = appSettings;
+        this.locale = appSettings.getLocale() != null ? appSettings.getLocale() : Locale.getDefault();
+    }
+
+    public Locale getLocale() {
         return locale;
     }
 
-    public static void setLocale(Locale newLocale) {
-        locale = newLocale;
+    public void setLocale(Locale newLocale) {
+        this.locale = newLocale;
+        appSettings.setLocale(newLocale);
     }
 }
-

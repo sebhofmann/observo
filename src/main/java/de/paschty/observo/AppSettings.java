@@ -4,19 +4,9 @@ import de.paschty.observo.monitor.Configuration;
 import java.util.Locale;
 
 public class AppSettings {
-    private Locale locale;
+
+    private Locale locale = Locale.getDefault();
     private Configuration serverConfiguration;
-
-    private static AppSettings instance;
-
-    private AppSettings() {}
-
-    public static AppSettings getInstance() {
-        if (instance == null) {
-            instance = new AppSettings();
-        }
-        return instance;
-    }
 
     public Locale getLocale() {
         return locale;

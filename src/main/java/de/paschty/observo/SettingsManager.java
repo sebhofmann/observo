@@ -3,6 +3,7 @@ package de.paschty.observo;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 
+import com.google.inject.Inject;
 import de.paschty.observo.monitor.Configuration;
 import de.paschty.observo.monitor.ConfigurationValue;
 import java.io.*;
@@ -18,18 +19,26 @@ public class SettingsManager {
       .resolve("observo/");
   private static final Path CONFIG_FILE = CONFIG_DIR.resolve("observo.properties");
 
-    public static void load() {
+    private final AppSettings appSettings;
+    private final LanguageManager languageManager;
+
+    @Inject
+    public SettingsManager(AppSettings appSettings, LanguageManager languageManager) {
+        this.appSettings = appSettings;
+        this.languageManager = languageManager;
+    }
+
+    public void load() {
         Properties props = new Properties();
-        AppSettings settings = AppSettings.getInstance();
         if (Files.exists(CONFIG_FILE)) {
             try (InputStream in = Files.newInputStream(CONFIG_FILE)) {
                 props.load(in);
                 String lang = props.getProperty("language", Locale.getDefault().getLanguage());
-                settings.setLocale(new Locale(lang));
-                settings.setWindowX(Double.parseDouble(props.getProperty("window.x", "-1")));
-                settings.setWindowY(Double.parseDouble(props.getProperty("window.y", "-1")));
-                settings.setWindowWidth(Double.parseDouble(props.getProperty("window.width", "1000")));
-                settings.setWindowHeight(Double.parseDouble(props.getProperty("window.height", "400")));
+                languageManager.setLocale(new Locale(lang));
+                appSettings.setWindowX(Double.parseDouble(props.getProperty("window.x", "-1")));
+                appSettings.setWindowY(Double.parseDouble(props.getProperty("window.y", "-1")));
+                appSettings.setWindowWidth(Double.parseDouble(props.getProperty("window.width", "1000")));
+                appSettings.setWindowHeight(Double.parseDouble(props.getProperty("window.height", "400")));
                 // Server-Konfiguration laden
                 // Beispiel für ZabbixServerConfiguration
                 de.paschty.observo.monitor.zabbix.ZabbixServerConfiguration config = new de.paschty.observo.monitor.zabbix.ZabbixServerConfiguration();
@@ -47,26 +56,25 @@ public class SettingsManager {
                         }
                     }
                 }
-                settings.setServerConfiguration(config);
+                appSettings.setServerConfiguration(config);
             } catch (IOException e) {
                 e.printStackTrace();
             }
         } else {
             // Defaults setzen
-            settings.setLocale(Locale.getDefault());
-            settings.setServerConfiguration(new de.paschty.observo.monitor.zabbix.ZabbixServerConfiguration());
+            languageManager.setLocale(Locale.getDefault());
+            appSettings.setServerConfiguration(new de.paschty.observo.monitor.zabbix.ZabbixServerConfiguration());
         }
     }
 
-    public static void save() {
-        AppSettings settings = AppSettings.getInstance();
+    public void save() {
         Properties props = new Properties();
-        props.setProperty("language", settings.getLocale().getLanguage());
-        props.setProperty("window.x", Double.toString(settings.getWindowX()));
-        props.setProperty("window.y", Double.toString(settings.getWindowY()));
-        props.setProperty("window.width", Double.toString(settings.getWindowWidth()));
-        props.setProperty("window.height", Double.toString(settings.getWindowHeight()));
-        Configuration config = settings.getServerConfiguration();
+        props.setProperty("language", languageManager.getLocale().getLanguage());
+        props.setProperty("window.x", Double.toString(appSettings.getWindowX()));
+        props.setProperty("window.y", Double.toString(appSettings.getWindowY()));
+        props.setProperty("window.width", Double.toString(appSettings.getWindowWidth()));
+        props.setProperty("window.height", Double.toString(appSettings.getWindowHeight()));
+        Configuration config = appSettings.getServerConfiguration();
         if (config != null) {
             for (ConfigurationValue<?> value : config.getValues()) {
                 Object v = value.getValue();
