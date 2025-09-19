@@ -6,7 +6,7 @@
 
   <groupId>de.paschty</groupId>
   <artifactId>observo</artifactId>
-  <version>0.1-SNAPSHOT</version>
+  <version>1.0.0-SNAPSHOT</version>
   <name>observo</name>
   <licenses>
     <license>
@@ -21,7 +21,7 @@
     <main.class>de.paschty.observo.ObservoApplication</main.class>
     <launcher.name>observo</launcher.name>
     <app.name>Observo</app.name>
-    <app.release.version>0.1</app.release.version>
+    <app.release.version>1.0.0</app.release.version>
     <jpackage.type>APP_IMAGE</jpackage.type>
     <javafx.modules>javafx.controls,javafx.fxml,javafx.media</javafx.modules>
   </properties>
