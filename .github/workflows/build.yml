@@ -1,0 +1,86 @@
+name: Build Distributables
+
+on:
+  push:
+    branches: [master]
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Package (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: Linux
+            suffix: linux
+            archive-ext: tar.gz
+          - os: macos-latest
+            label: macOS
+            suffix: macos
+            archive-ext: tar.gz
+          - os: windows-latest
+            label: Windows
+            suffix: windows
+            archive-ext: zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build with Maven
+        run: mvn -B -ntp clean package
+
+      - name: Create archive (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          tar czf observo-${{ matrix.suffix }}.tar.gz -C target/dist Observo
+
+      - name: Create archive (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          Compress-Archive -Path target/dist/Observo -DestinationPath observo-${{ matrix.suffix }}.zip
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: observo-${{ matrix.suffix }}
+          path: observo-${{ matrix.suffix }}.${{ matrix['archive-ext'] }}
+          if-no-files-found: error
+
+  release:
+    name: Publish Release Assets
+    needs: package
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+
+    steps:
+      - name: Download packaging artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: observo-*
+          merge-multiple: true
+          path: release-artifacts
+
+      - name: List files
+        run: ls -R release-artifacts
+
+      - name: Attach files to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

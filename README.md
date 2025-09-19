@@ -11,23 +11,27 @@ observo is a JavaFX application for monitoring and displaying Zabbix messages.
 1. **Build the project:**
 
    ```sh
-   mvn clean install javafx:jlink
+   mvn clean package
    ```
 
-   This will build the project and create a runnable runtime image in the `target/` directory.
+   This produces the application jar, copies all runtime dependencies and creates a platform specific app image under `target/dist/` via `jpackage`.
 
 2. **Run the application:**
 
-   The generated image is located in `target/observo/`. You can start the application with:
+   The generated app image is located in `target/dist/Observo`. Start it with:
 
    ```sh
-   target/observo/bin/observo
+   target/dist/Observo/bin/Observo
    ```
 
 ## Configuration
 - Settings (server, language, window size) are saved automatically when exiting the application.
 - The language can be changed in the settings menu.
 - Zabbix server configuration is available via the menu.
+
+## Continuous Integration
+- Every push to `master` runs the "Build Distributables" GitHub Action and uploads the platform-specific bundles as workflow artifacts (`observo-linux.tar.gz`, `observo-macos.tar.gz`, `observo-windows.zip`).
+- Publishing a release in GitHub automatically rebuilds the bundles and attaches the same artifacts to the release.
 
 ## Features
 - Polling Zabbix problems

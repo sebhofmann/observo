@@ -18,6 +18,12 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <junit.version>5.12.1</junit.version>
+    <main.class>de.paschty.observo.ObservoApplication</main.class>
+    <launcher.name>observo</launcher.name>
+    <app.name>Observo</app.name>
+    <app.release.version>0.1</app.release.version>
+    <jpackage.type>APP_IMAGE</jpackage.type>
+    <javafx.modules>javafx.controls,javafx.fxml,javafx.media</javafx.modules>
   </properties>
 
   <dependencies>
@@ -100,14 +106,93 @@
             <!-- Default configuration for running with: mvn clean javafx:run -->
             <id>default-cli</id>
             <configuration>
-              <mainClass>de.paschty.observo/de.paschty.observo.ObservoApplication</mainClass>
-              <launcher>observo</launcher>
-              <jlinkZipName>app</jlinkZipName>
-              <jlinkImageName>observo</jlinkImageName>
-              <noManPages>true</noManPages>
-              <stripDebug>true</stripDebug>
-              <noHeaderFiles>true</noHeaderFiles>
-              <bindServices>true</bindServices>
+              <mainClass>${main.class}</mainClass>
+              <launcher>${launcher.name}</launcher>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.1</version>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>${main.class}</mainClass>
+              <addClasspath>true</addClasspath>
+              <classpathPrefix>lib/</classpathPrefix>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.8.1</version>
+        <executions>
+          <execution>
+            <id>copy-dependencies-for-jpackage</id>
+            <phase>package</phase>
+            <goals>
+              <goal>copy-dependencies</goal>
+            </goals>
+            <configuration>
+              <includeScope>runtime</includeScope>
+              <outputDirectory>${project.build.directory}/jpackage/lib</outputDirectory>
+              <overWriteReleases>true</overWriteReleases>
+              <overWriteSnapshots>true</overWriteSnapshots>
+              <useRepositoryLayout>false</useRepositoryLayout>
+            </configuration>
+          </execution>
+          <execution>
+            <id>copy-main-jar-for-jpackage</id>
+            <phase>package</phase>
+            <goals>
+              <goal>copy</goal>
+            </goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>${project.groupId}</groupId>
+                  <artifactId>${project.artifactId}</artifactId>
+                  <version>${project.version}</version>
+                  <type>${project.packaging}</type>
+                  <overWrite>true</overWrite>
+                  <outputDirectory>${project.build.directory}/jpackage</outputDirectory>
+                  <destFileName>${project.build.finalName}.jar</destFileName>
+                </artifactItem>
+              </artifactItems>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.panteleyev</groupId>
+        <artifactId>jpackage-maven-plugin</artifactId>
+        <version>1.6.6</version>
+        <executions>
+          <execution>
+            <id>create-distributable</id>
+            <phase>package</phase>
+            <goals>
+              <goal>jpackage</goal>
+            </goals>
+            <configuration>
+              <input>${project.build.directory}/jpackage</input>
+              <destination>${project.build.directory}/dist</destination>
+              <name>${app.name}</name>
+              <appVersion>${app.release.version}</appVersion>
+              <type>${jpackage.type}</type>
+              <mainJar>${project.build.finalName}.jar</mainJar>
+              <mainClass>${main.class}</mainClass>
+              <icon>${project.basedir}/src/main/resources/observo.png</icon>
+              <classPath>lib/*</classPath>
+              <removeDestination>true</removeDestination>
+              <javaOptions>
+                <javaOption>--module-path</javaOption>
+                <javaOption>$APPDIR/lib</javaOption>
+                <javaOption>--add-modules</javaOption>
+                <javaOption>${javafx.modules}</javaOption>
+              </javaOptions>
             </configuration>
           </execution>
         </executions>
