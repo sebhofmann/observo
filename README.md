@@ -18,11 +18,11 @@ observo is a JavaFX application for monitoring and displaying Zabbix messages.
 
 2. **Run the application:**
 
-   The generated app image is located in `target/dist/Observo`. Start it with:
+   The generated app image is located in `target/dist/`.
 
-   ```sh
-   target/dist/Observo/bin/Observo
-   ```
+   - Linux: `target/dist/Observo/bin/Observo`
+   - Windows: `target/dist/Observo/Observo.exe`
+   - macOS: open the bundle `target/dist/Observo.app`
 
 ## Configuration
 - Settings (server, language, window size) are saved automatically when exiting the application.

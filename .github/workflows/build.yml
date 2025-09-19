@@ -20,14 +20,17 @@ jobs:
             label: Linux
             suffix: linux
             archive-ext: tar.gz
+            app-path: Observo
           - os: macos-latest
             label: macOS
             suffix: macos
             archive-ext: tar.gz
+            app-path: Observo.app
           - os: windows-latest
             label: Windows
             suffix: windows
             archive-ext: zip
+            app-path: Observo
 
     steps:
       - name: Checkout
@@ -46,12 +49,12 @@ jobs:
       - name: Create archive (Unix)
         if: runner.os != 'Windows'
         run: |
-          tar czf observo-${{ matrix.suffix }}.tar.gz -C target/dist Observo
+          tar czf observo-${{ matrix.suffix }}.tar.gz -C target/dist "${{ matrix.app-path }}"
 
       - name: Create archive (Windows)
         if: runner.os == 'Windows'
         run: |
-          Compress-Archive -Path target/dist/Observo -DestinationPath observo-${{ matrix.suffix }}.zip
+          Compress-Archive -Path "target/dist/${{ matrix.app-path }}" -DestinationPath observo-${{ matrix.suffix }}.zip
         shell: pwsh
 
       - name: Upload artifact
