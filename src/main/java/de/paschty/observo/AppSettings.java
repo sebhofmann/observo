@@ -7,6 +7,7 @@ public class AppSettings {
 
     private Locale locale = Locale.getDefault();
     private Configuration serverConfiguration;
+    private String serverProviderId;
 
     public Locale getLocale() {
         return locale;
@@ -22,6 +23,14 @@ public class AppSettings {
 
     public void setServerConfiguration(Configuration config) {
         this.serverConfiguration = config;
+    }
+
+    public String getServerProviderId() {
+        return serverProviderId;
+    }
+
+    public void setServerProviderId(String serverProviderId) {
+        this.serverProviderId = serverProviderId;
     }
 
     private double windowX = -1;

@@ -5,6 +5,7 @@ import static javafx.scene.control.ButtonBar.ButtonData.OK_DONE;
 import com.google.inject.Inject;
 import de.paschty.observo.monitor.Message;
 import de.paschty.observo.monitor.Server;
+import de.paschty.observo.monitor.ServerManager;
 import de.paschty.observo.monitor.zabbix.ZabbixServerConfiguration;
 
 import javafx.animation.PauseTransition;
@@ -47,23 +48,21 @@ public class MainController {
   private final SettingsManager settingsManager;
   private final LanguageManager languageManager;
   private final FXMLLoaderFactory fxmlLoaderFactory;
-  private final Server server;
+  private final ServerManager serverManager;
+  private Server server;
 
   @Inject
   public MainController(AppSettings appSettings,
                         SettingsManager settingsManager,
                         LanguageManager languageManager,
                         FXMLLoaderFactory fxmlLoaderFactory,
-                        Server server) {
+                        ServerManager serverManager) {
     this.appSettings = appSettings;
     this.settingsManager = settingsManager;
     this.languageManager = languageManager;
     this.fxmlLoaderFactory = fxmlLoaderFactory;
-    this.server = server;
-    var configuration = appSettings.getServerConfiguration();
-    if (configuration != null) {
-      this.server.setConfiguration(configuration);
-    }
+    this.serverManager = serverManager;
+    this.server = serverManager.getActiveServer();
   }
 
   @FXML
@@ -112,17 +111,13 @@ public class MainController {
       FXMLLoader loader = fxmlLoaderFactory.create(getClass().getResource("server-config-view.fxml"), bundle);
       Parent root = loader.load();
       ServerConfigController controller = loader.getController();
-      controller.setConfiguration(appSettings.getServerConfiguration());
       Stage stage = new Stage();
       stage.setTitle(bundle.getString("serverConfig.title"));
       stage.setScene(new Scene(root));
       stage.showAndWait(); // Warten bis geschlossen
       // Nach Schließen: Timer neu starten, falls Intervall geändert
+      server = serverManager.getActiveServer();
       restartPollingIfNeeded();
-      // Server-Konfiguration nach Dialog aktualisieren
-      if (server != null) {
-        server.setConfiguration(appSettings.getServerConfiguration());
-      }
     } catch (IOException e) {
       e.printStackTrace();
     }

@@ -3,62 +3,98 @@ package de.paschty.observo;
 import com.google.inject.Inject;
 import de.paschty.observo.monitor.Configuration;
 import de.paschty.observo.monitor.ConfigurationValue;
+import de.paschty.observo.monitor.ServerManager;
+import de.paschty.observo.monitor.ServerProvider;
 import de.paschty.observo.monitor.TextField;
 import de.paschty.observo.monitor.PasswordField;
 import de.paschty.observo.monitor.NumberField;
 import de.paschty.observo.monitor.BooleanField;
+import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.ResourceBundle;
+import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
-import javafx.scene.control.*;
+import javafx.fxml.Initializable;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Control;
+import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-import javafx.fxml.Initializable;
-import javafx.collections.FXCollections;
-import javafx.scene.control.ComboBox;
-import de.paschty.observo.monitor.zabbix.ZabbixServerConfiguration;
-import java.net.URL;
-import java.util.ResourceBundle;
-import java.util.HashMap;
-import java.util.Map;
 
 public class ServerConfigController implements Initializable {
 
-  private final AppSettings appSettings;
   private final SettingsManager settingsManager;
+  private final ServerManager serverManager;
   private final Map<ConfigurationValue<?>, Control> valueControls = new HashMap<>();
   @FXML
   private VBox formContainer;
   @FXML
-  private ComboBox<String> serverTypeComboBox;
+  private ComboBox<ServerProvider> serverTypeComboBox;
   private Configuration configuration;
   private ResourceBundle resources;
 
   @Inject
-  public ServerConfigController(AppSettings appSettings, SettingsManager settingsManager) {
-    this.appSettings = appSettings;
+  public ServerConfigController(SettingsManager settingsManager,
+                                ServerManager serverManager) {
     this.settingsManager = settingsManager;
+    this.serverManager = serverManager;
   }
 
   @Override
   public void initialize(URL location, ResourceBundle resources) {
     this.resources = resources;
-    serverTypeComboBox.setItems(FXCollections.observableArrayList("Zabbix"));
-    serverTypeComboBox.getSelectionModel().selectFirst();
+    var providers = FXCollections.observableArrayList(serverManager.getProviders());
+    serverTypeComboBox.setItems(providers);
+    serverTypeComboBox.setCellFactory(cb -> new ListCell<>() {
+      @Override
+      protected void updateItem(ServerProvider item, boolean empty) {
+        super.updateItem(item, empty);
+        setText(empty || item == null ? null : resolveDisplayName(item));
+      }
+    });
+    serverTypeComboBox.setButtonCell(new ListCell<>() {
+      @Override
+      protected void updateItem(ServerProvider item, boolean empty) {
+        super.updateItem(item, empty);
+        setText(empty || item == null ? null : resolveDisplayName(item));
+      }
+    });
     serverTypeComboBox.setOnAction(e -> onServerTypeChanged());
-    Configuration currentConfiguration = appSettings.getServerConfiguration();
-    if (currentConfiguration != null) {
-      setConfiguration(currentConfiguration);
-    } else {
-      setConfiguration(new ZabbixServerConfiguration());
+    ServerProvider activeProvider = serverManager.getActiveProvider();
+    if (activeProvider != null) {
+      serverTypeComboBox.getSelectionModel().select(activeProvider);
+      setConfiguration(serverManager.getConfiguration(activeProvider.id()));
+    } else if (!providers.isEmpty()) {
+      serverTypeComboBox.getSelectionModel().selectFirst();
+      onServerTypeChanged();
     }
   }
 
   private void onServerTypeChanged() {
-    String selected = serverTypeComboBox.getSelectionModel().getSelectedItem();
-    if ("Zabbix".equals(selected)) {
-      setConfiguration(new ZabbixServerConfiguration());
+    ServerProvider selected = serverTypeComboBox.getSelectionModel().getSelectedItem();
+    if (selected != null) {
+      setConfiguration(serverManager.getConfiguration(selected.id()));
     }
-    // Hier können weitere Typen ergänzt werden
+  }
+
+  private String resolveDisplayName(ServerProvider provider) {
+    if (provider == null) {
+      return null;
+    }
+    String key = provider.displayI18nKey();
+    if (key != null && resources != null && resources.containsKey(key)) {
+      return resources.getString(key);
+    }
+    if (key != null && !key.isBlank()) {
+      return key;
+    }
+    return provider.id();
   }
 
   public void setConfiguration(Configuration configuration) {
@@ -94,7 +130,6 @@ public class ServerConfigController implements Initializable {
           continue;
         }
       }
-      // Hilfe-Button falls HelpKey vorhanden
       if (value.getHelpKey() != null) {
         Button helpButton = new Button("?");
         helpButton.setFocusTraversable(false);
@@ -122,15 +157,17 @@ public class ServerConfigController implements Initializable {
 
   @FXML
   protected void onSaveConfigClick() {
+    ServerProvider selectedProvider = serverTypeComboBox.getSelectionModel().getSelectedItem();
+    if (selectedProvider == null) {
+      return;
+    }
     for (Map.Entry<ConfigurationValue<?>, Control> entry : valueControls.entrySet()) {
       ConfigurationValue<?> value = entry.getKey();
       Control control = entry.getValue();
       if (value instanceof TextField textField) {
-        textField.setValue(
-            ((javafx.scene.control.TextField) control).getText());
+        textField.setValue(((javafx.scene.control.TextField) control).getText());
       } else if (value instanceof PasswordField passwordField) {
-        passwordField.setValue(
-            ((javafx.scene.control.PasswordField) control).getText());
+        passwordField.setValue(((javafx.scene.control.PasswordField) control).getText());
       } else if (value instanceof NumberField numberField) {
         String text = ((javafx.scene.control.TextField) control).getText();
         try {
@@ -141,7 +178,9 @@ public class ServerConfigController implements Initializable {
         booleanField.setValue(((CheckBox) control).isSelected());
       }
     }
-    appSettings.setServerConfiguration(configuration);
+    serverManager.getConfiguration(selectedProvider.id());
+    serverManager.activate(selectedProvider.id());
+    serverManager.updateActiveConfiguration(configuration);
     settingsManager.save();
     Stage stage = (Stage) formContainer.getScene().getWindow();
     stage.close();

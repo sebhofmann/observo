@@ -6,11 +6,16 @@ import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import com.google.inject.Inject;
 import de.paschty.observo.monitor.Configuration;
 import de.paschty.observo.monitor.ConfigurationValue;
+import de.paschty.observo.monitor.ServerProvider;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 public class SettingsManager {
 
@@ -21,11 +26,20 @@ public class SettingsManager {
 
     private final AppSettings appSettings;
     private final LanguageManager languageManager;
+    private final java.util.List<ServerProvider> serverProviders;
+    private final Map<String, ServerProvider> providersById;
 
     @Inject
-    public SettingsManager(AppSettings appSettings, LanguageManager languageManager) {
+    public SettingsManager(AppSettings appSettings,
+                           LanguageManager languageManager,
+                           Set<ServerProvider> serverProviders) {
         this.appSettings = appSettings;
         this.languageManager = languageManager;
+        this.serverProviders = new ArrayList<>(serverProviders);
+        this.providersById = new LinkedHashMap<>();
+        for (ServerProvider provider : this.serverProviders) {
+            this.providersById.put(provider.id(), provider);
+        }
     }
 
     public void load() {
@@ -39,31 +53,14 @@ public class SettingsManager {
                 appSettings.setWindowY(Double.parseDouble(props.getProperty("window.y", "-1")));
                 appSettings.setWindowWidth(Double.parseDouble(props.getProperty("window.width", "1000")));
                 appSettings.setWindowHeight(Double.parseDouble(props.getProperty("window.height", "400")));
-                // Server-Konfiguration laden
-                // Beispiel für ZabbixServerConfiguration
-                de.paschty.observo.monitor.zabbix.ZabbixServerConfiguration config = new de.paschty.observo.monitor.zabbix.ZabbixServerConfiguration();
-                for (var value : config.getValues()) {
-                    String v = props.getProperty(value.getKey());
-                    if (v != null) {
-                        if (value instanceof de.paschty.observo.monitor.TextField tf) {
-                            tf.setValue(v);
-                        } else if (value instanceof de.paschty.observo.monitor.PasswordField pf) {
-                            pf.setValue(v);
-                        } else if (value instanceof de.paschty.observo.monitor.NumberField nf) {
-                            try { nf.setValue(Integer.parseInt(v)); } catch (NumberFormatException ignored) {}
-                        } else if (value instanceof de.paschty.observo.monitor.BooleanField bf) {
-                            bf.setValue(Boolean.parseBoolean(v));
-                        }
-                    }
-                }
-                appSettings.setServerConfiguration(config);
+                loadServerConfiguration(props);
             } catch (IOException e) {
                 e.printStackTrace();
             }
         } else {
             // Defaults setzen
             languageManager.setLocale(Locale.getDefault());
-            appSettings.setServerConfiguration(new de.paschty.observo.monitor.zabbix.ZabbixServerConfiguration());
+            initialiseDefaultServerConfiguration();
         }
     }
 
@@ -75,10 +72,15 @@ public class SettingsManager {
         props.setProperty("window.width", Double.toString(appSettings.getWindowWidth()));
         props.setProperty("window.height", Double.toString(appSettings.getWindowHeight()));
         Configuration config = appSettings.getServerConfiguration();
+        String providerId = appSettings.getServerProviderId();
+        if (providerId != null) {
+            props.setProperty("server.type", providerId);
+        }
         if (config != null) {
             for (ConfigurationValue<?> value : config.getValues()) {
                 Object v = value.getValue();
-                props.setProperty(value.getKey(), v != null ? v.toString() : "");
+                String key = buildConfigKey(providerId, value.getKey());
+                props.setProperty(key, v != null ? v.toString() : "");
             }
         }
         try {
@@ -89,5 +91,70 @@ public class SettingsManager {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private void loadServerConfiguration(Properties props) {
+        ServerProvider provider = resolveProvider(props.getProperty("server.type"));
+        Configuration configuration = provider.createDefaultConfiguration();
+        for (ConfigurationValue<?> value : configuration.getValues()) {
+            String key = buildConfigKey(provider.id(), value.getKey());
+            String storedValue = props.getProperty(key);
+            if (storedValue == null) {
+                // Backwards compatibility with legacy keys without prefix
+                storedValue = props.getProperty(value.getKey());
+            }
+            if (storedValue != null) {
+                applyValue(value, storedValue);
+            }
+        }
+        appSettings.setServerProviderId(provider.id());
+        appSettings.setServerConfiguration(configuration);
+    }
+
+    private void initialiseDefaultServerConfiguration() {
+        ServerProvider provider = serverProviders.isEmpty()
+            ? null
+            : serverProviders.getFirst();
+        if (provider == null) {
+            throw new IllegalStateException("No ServerProvider registered");
+        }
+        appSettings.setServerProviderId(provider.id());
+        appSettings.setServerConfiguration(provider.createDefaultConfiguration());
+    }
+
+    private ServerProvider resolveProvider(String providerId) {
+        if (providerId != null) {
+            ServerProvider provider = providersById.get(providerId);
+            if (provider != null) {
+                return provider;
+            }
+        }
+        if (serverProviders.isEmpty()) {
+            throw new IllegalStateException("No ServerProvider registered");
+        }
+        return serverProviders.getFirst();
+    }
+
+    private static void applyValue(ConfigurationValue<?> value, String storedValue) {
+        try {
+            if (value instanceof de.paschty.observo.monitor.TextField tf) {
+                tf.setValue(storedValue);
+            } else if (value instanceof de.paschty.observo.monitor.PasswordField pf) {
+                pf.setValue(storedValue);
+            } else if (value instanceof de.paschty.observo.monitor.NumberField nf) {
+                nf.setValue(Integer.parseInt(storedValue));
+            } else if (value instanceof de.paschty.observo.monitor.BooleanField bf) {
+                bf.setValue(Boolean.parseBoolean(storedValue));
+            }
+        } catch (NumberFormatException ignored) {
+            // Keep default if parsing fails
+        }
+    }
+
+    private static String buildConfigKey(String providerId, String valueKey) {
+        if (providerId == null || providerId.isBlank()) {
+            return valueKey;
+        }
+        return "server." + providerId + "." + valueKey;
     }
 }
