@@ -1,18 +1,21 @@
 package de.paschty.observo;
 
 import com.google.inject.Inject;
+import de.paschty.observo.I18N;
+import de.paschty.observo.monitor.BooleanField;
 import de.paschty.observo.monitor.Configuration;
 import de.paschty.observo.monitor.ConfigurationValue;
+import de.paschty.observo.monitor.NumberField;
+import de.paschty.observo.monitor.PasswordField;
 import de.paschty.observo.monitor.ServerManager;
 import de.paschty.observo.monitor.ServerProvider;
 import de.paschty.observo.monitor.TextField;
-import de.paschty.observo.monitor.PasswordField;
-import de.paschty.observo.monitor.NumberField;
-import de.paschty.observo.monitor.BooleanField;
+
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.ResourceBundle;
+
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -37,18 +40,19 @@ public class ServerConfigController implements Initializable {
   @FXML
   private ComboBox<ServerProvider> serverTypeComboBox;
   private Configuration configuration;
-  private ResourceBundle resources;
+  private final I18N i18n;
 
   @Inject
   public ServerConfigController(SettingsManager settingsManager,
-                                ServerManager serverManager) {
+                                ServerManager serverManager,
+                                I18N i18n) {
     this.settingsManager = settingsManager;
     this.serverManager = serverManager;
+    this.i18n = i18n;
   }
 
   @Override
   public void initialize(URL location, ResourceBundle resources) {
-    this.resources = resources;
     var providers = FXCollections.observableArrayList(serverManager.getProviders());
     serverTypeComboBox.setItems(providers);
     serverTypeComboBox.setCellFactory(cb -> new ListCell<>() {
@@ -88,8 +92,8 @@ public class ServerConfigController implements Initializable {
       return null;
     }
     String key = provider.displayI18nKey();
-    if (key != null && resources != null && resources.containsKey(key)) {
-      return resources.getString(key);
+    if (key != null && i18n.hasKey(key)) {
+      return i18n.get(key);
     }
     if (key != null && !key.isBlank()) {
       return key;
@@ -104,8 +108,8 @@ public class ServerConfigController implements Initializable {
     for (ConfigurationValue<?> value : configuration.getValues()) {
       String labelKey = "serverConfig.label." + value.getKey();
       String labelText;
-      if (resources != null && resources.containsKey(labelKey)) {
-        labelText = resources.getString(labelKey);
+      if (i18n.hasKey(labelKey)) {
+        labelText = i18n.get(labelKey);
       } else {
         labelText = value.getKey();
       }
@@ -135,9 +139,10 @@ public class ServerConfigController implements Initializable {
         helpButton.setFocusTraversable(false);
         helpButton.setStyle("-fx-font-size: 12px; -fx-padding: 2 6;");
         helpButton.setOnAction(e -> {
-          String helpText = resources != null && resources.containsKey(value.getHelpKey())
-              ? resources.getString(value.getHelpKey())
-              : value.getHelpKey();
+          String helpKey = value.getHelpKey();
+          String helpText = helpKey != null && i18n.hasKey(helpKey)
+              ? i18n.get(helpKey)
+              : helpKey;
           Alert alert = new Alert(Alert.AlertType.INFORMATION);
           alert.setTitle(labelText + " - Hilfe");
           alert.setHeaderText(labelText);

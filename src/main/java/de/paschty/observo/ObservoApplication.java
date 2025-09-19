@@ -5,8 +5,6 @@ import com.google.inject.Injector;
 import de.paschty.observo.di.ObservoModule;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Locale;
-import java.util.ResourceBundle;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -24,14 +22,12 @@ public class ObservoApplication extends Application {
     settingsManager.load();
 
     AppSettings appSettings = injector.getInstance(AppSettings.class);
-    LanguageManager languageManager = injector.getInstance(LanguageManager.class);
-    Locale locale = languageManager.getLocale();
-    ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", locale);
+    I18N i18n = injector.getInstance(I18N.class);
     FXMLLoaderFactory fxmlLoaderFactory = injector.getInstance(FXMLLoaderFactory.class);
-    FXMLLoader fxmlLoader = fxmlLoaderFactory.create(ObservoApplication.class.getResource("main-view.fxml"), bundle);
+    FXMLLoader fxmlLoader = fxmlLoaderFactory.create(ObservoApplication.class.getResource("main-view.fxml"));
     Parent root = fxmlLoader.load();
     Scene scene = new Scene(root, appSettings.getWindowWidth(), appSettings.getWindowHeight());
-    stage.setTitle(bundle.getString("main.title"));
+    stage.setTitle(i18n.get("main.title"));
     stage.setScene(scene);
 
     try (InputStream is = getClass().getClassLoader().getResourceAsStream("observo.png")) {

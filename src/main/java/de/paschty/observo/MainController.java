@@ -8,60 +8,59 @@ import de.paschty.observo.monitor.Server;
 import de.paschty.observo.monitor.ServerManager;
 import de.paschty.observo.monitor.zabbix.ZabbixServerConfiguration;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
 import javafx.animation.PauseTransition;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.DialogPane;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
-import javafx.stage.Stage;
 import javafx.scene.media.AudioClip;
-import javafx.application.Platform;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.ResourceBundle;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import javafx.stage.Stage;
 import javafx.util.Duration;
-import org.controlsfx.control.Notifications;
-import javafx.scene.control.ContextMenu;
-import javafx.scene.control.MenuItem;
-import javafx.scene.control.Dialog;
-import javafx.scene.control.ButtonType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.controlsfx.control.Notifications;
 
 public class MainController {
 
   private final AppSettings appSettings;
   private final SettingsManager settingsManager;
-  private final LanguageManager languageManager;
   private final FXMLLoaderFactory fxmlLoaderFactory;
   private final ServerManager serverManager;
+  private final I18N i18n;
   private Server server;
 
   @Inject
   public MainController(AppSettings appSettings,
                         SettingsManager settingsManager,
-                        LanguageManager languageManager,
                         FXMLLoaderFactory fxmlLoaderFactory,
-                        ServerManager serverManager) {
+                        ServerManager serverManager,
+                        I18N i18n) {
     this.appSettings = appSettings;
     this.settingsManager = settingsManager;
-    this.languageManager = languageManager;
     this.fxmlLoaderFactory = fxmlLoaderFactory;
     this.serverManager = serverManager;
+    this.i18n = i18n;
     this.server = serverManager.getActiveServer();
   }
 
@@ -105,14 +104,10 @@ public class MainController {
   @FXML
   protected void onServerConfigMenuClick() {
     try {
-      // ResourceBundle für die aktuelle Sprache laden
-      java.util.Locale locale = languageManager.getLocale();
-      ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", locale);
-      FXMLLoader loader = fxmlLoaderFactory.create(getClass().getResource("server-config-view.fxml"), bundle);
+      FXMLLoader loader = fxmlLoaderFactory.create(getClass().getResource("server-config-view.fxml"));
       Parent root = loader.load();
-      ServerConfigController controller = loader.getController();
       Stage stage = new Stage();
-      stage.setTitle(bundle.getString("serverConfig.title"));
+      stage.setTitle(i18n.get("serverConfig.title"));
       stage.setScene(new Scene(root));
       stage.showAndWait(); // Warten bis geschlossen
       // Nach Schließen: Timer neu starten, falls Intervall geändert
@@ -126,12 +121,10 @@ public class MainController {
   @FXML
   protected void onSettingsMenuClick() {
     try {
-      java.util.Locale locale = languageManager.getLocale();
-      ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", locale);
-      FXMLLoader loader = fxmlLoaderFactory.create(getClass().getResource("settings-view.fxml"), bundle);
+      FXMLLoader loader = fxmlLoaderFactory.create(getClass().getResource("settings-view.fxml"));
       Parent root = loader.load();
       Stage stage = new Stage();
-      stage.setTitle(bundle.getString("settings.title"));
+      stage.setTitle(i18n.get("settings.title"));
       stage.setScene(new Scene(root));
       stage.showAndWait();
       // Nach Schließen des Dialogs: Hauptansicht neu laden, falls Sprache geändert wurde
@@ -235,9 +228,8 @@ public class MainController {
         || msg.getClassification() == de.paschty.observo.monitor.Classification.WARNING);
     // Notification/Sound nur bei Wechsel von keine zu mindestens eine kritische Nachricht
     if (!hadCriticalMessages && hasCriticalMessages) {
-        ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", languageManager.getLocale());
-        String newMessageTitle = bundle.getString("notification.newMessages.title");
-        String newMessageText = bundle.getString("notification.newMessages.text");
+        String newMessageTitle = i18n.get("notification.newMessages.title");
+        String newMessageText = i18n.get("notification.newMessages.text");
         Platform.runLater(() -> {
             sendSystemNotification(newMessageTitle, newMessageText);
             playNotificationSound();
@@ -246,11 +238,10 @@ public class MainController {
     hadMessages = hasMessages;
     hadCriticalMessages = hasCriticalMessages;
     Platform.runLater(() -> {
-        ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", languageManager.getLocale());
         if (!hasMessages) {
             messagesTable.setVisible(false);
             okLabel.setVisible(true);
-            okLabel.setText(bundle.getString("status.ok"));
+            okLabel.setText(i18n.get("status.ok"));
             okLabel.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10px; -fx-font-size: 20px;");
             okLabel.setAlignment(javafx.geometry.Pos.CENTER);
             okLabel.setMaxWidth(Double.MAX_VALUE);
@@ -302,9 +293,8 @@ public class MainController {
 
   private void reloadMainView() {
     try {
-      java.util.Locale locale = languageManager.getLocale();
-      ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", locale);
-      FXMLLoader loader = fxmlLoaderFactory.create(getClass().getResource("main-view.fxml"), bundle);
+      stopPolling();
+      FXMLLoader loader = fxmlLoaderFactory.create(getClass().getResource("main-view.fxml"));
       Parent root = loader.load();
       Scene scene = rootVBox.getScene();
       scene.setRoot(root);
@@ -343,24 +333,23 @@ public class MainController {
   @FXML
   private void onAcknowledgeMenuClick() {
     logger.info("Acknowledge menu click triggered");
-    ResourceBundle bundle = ResourceBundle.getBundle("de.paschty.observo.messages", languageManager.getLocale());
     Message selectedMessage = messagesTable.getSelectionModel().getSelectedItem();
     if (selectedMessage == null) {
       logger.warn("No message selected");
       Notifications.create()
-        .title(bundle.getString("acknowledge.noMessageSelected.title"))
-        .text(bundle.getString("acknowledge.noMessageSelected.text"))
+        .title(i18n.get("acknowledge.noMessageSelected.title"))
+        .text(i18n.get("acknowledge.noMessageSelected.text"))
         .showWarning();
       return;
     }
     try {
       FXMLLoader loader = fxmlLoaderFactory.create(getClass().getResource(
-          "/de/paschty/observo/acknowledge-dialog.fxml"), bundle);
+          "/de/paschty/observo/acknowledge-dialog.fxml"));
       DialogPane dialogPane = loader.load();
       AcknowledgeDialogController dialogController = loader.getController();
       Dialog<ButtonType> dialog = new Dialog<>();
       dialog.setDialogPane(dialogPane);
-      dialog.setTitle(bundle.getString("acknowledge.dialog.title"));
+      dialog.setTitle(i18n.get("acknowledge.dialog.title"));
       dialog.initOwner(rootVBox.getScene().getWindow());
       ButtonType result = dialog.showAndWait().orElse(ButtonType.CANCEL);
       logger.info("Result: {}", result);
@@ -376,24 +365,24 @@ public class MainController {
         }
         if (success) {
           Notifications.create()
-            .title(bundle.getString("acknowledge.success.title"))
-            .text(bundle.getString("acknowledge.success.text"))
+            .title(i18n.get("acknowledge.success.title"))
+            .text(i18n.get("acknowledge.success.text"))
             .showInformation();
           PauseTransition pause = new PauseTransition(javafx.util.Duration.seconds(1));
           pause.setOnFinished(ev -> loadMessages());
           pause.play();
         } else {
           Notifications.create()
-            .title(bundle.getString("acknowledge.error.title"))
-            .text(bundle.getString("acknowledge.error.text"))
+            .title(i18n.get("acknowledge.error.title"))
+            .text(i18n.get("acknowledge.error.text"))
             .showError();
         }
       }
     } catch (IOException e) {
       logger.error("Error opening dialog", e);
       Notifications.create()
-        .title(bundle.getString("acknowledge.dialogOpenError.title"))
-        .text(bundle.getString("acknowledge.dialogOpenError.text"))
+        .title(i18n.get("acknowledge.dialogOpenError.title"))
+        .text(i18n.get("acknowledge.dialogOpenError.text"))
         .showError();
     } catch (Exception e) {
       logger.error("Error in onAcknowledgeMenuClick", e);

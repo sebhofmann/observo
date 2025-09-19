@@ -2,9 +2,9 @@ package de.paschty.observo;
 
 import com.google.inject.Inject;
 import com.google.inject.Injector;
-import javafx.fxml.FXMLLoader;
 import java.net.URL;
 import java.util.ResourceBundle;
+import javafx.fxml.FXMLLoader;
 
 /**
  * Configures {@link FXMLLoader} instances so that controllers are created through Guice.
@@ -12,10 +12,12 @@ import java.util.ResourceBundle;
 public class FXMLLoaderFactory {
 
     private final Injector injector;
+    private final I18N i18n;
 
     @Inject
-    public FXMLLoaderFactory(Injector injector) {
+    public FXMLLoaderFactory(Injector injector, I18N i18n) {
         this.injector = injector;
+        this.i18n = i18n;
     }
 
     public FXMLLoader create(URL resource, ResourceBundle bundle) {
@@ -25,7 +27,6 @@ public class FXMLLoaderFactory {
     }
 
     public FXMLLoader create(URL resource) {
-        return create(resource, null);
+        return create(resource, i18n.getBundle());
     }
 }
-
