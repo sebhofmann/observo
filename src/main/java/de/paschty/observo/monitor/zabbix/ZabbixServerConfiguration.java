@@ -12,6 +12,7 @@ public class ZabbixServerConfiguration implements Configuration {
   private TextField url;
   private TextField username;
   private PasswordField password;
+  private PasswordField apiToken;
   private NumberField pollIntervalMillis;
   private TextField filter;
 
@@ -19,7 +20,8 @@ public class ZabbixServerConfiguration implements Configuration {
     this.url = new TextField("zabbix.url", "http://localhost/zabbix");
     this.username = new TextField("zabbix.username", "Admin");
     this.password = new PasswordField("zabbix.password", "zabbix");
-    this.pollIntervalMillis = new NumberField("zabbix.pollIntervalMillis", 10000); // Default: 10 Sekunden
+    this.apiToken = new PasswordField("zabbix.apiToken", "", "serverConfig.help.zabbix.apiToken");
+    this.pollIntervalMillis = new NumberField("zabbix.pollIntervalMillis", 10000);
     this.filter = new TextField("zabbix.filter", "", "serverConfig.help.zabbix.filter");
   }
 
@@ -35,6 +37,10 @@ public class ZabbixServerConfiguration implements Configuration {
     return password;
   }
 
+  public PasswordField getApiToken() {
+    return apiToken;
+  }
+
   public NumberField getPollIntervalMillis() {
     return pollIntervalMillis;
   }
@@ -45,6 +51,6 @@ public class ZabbixServerConfiguration implements Configuration {
 
   @Override
   public List<ConfigurationValue> getValues() {
-    return List.of(url, username, password, pollIntervalMillis, filter);
+    return List.of(url, username, password, apiToken, pollIntervalMillis, filter);
   }
 }

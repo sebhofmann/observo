@@ -13,16 +13,25 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class ZabbixServer implements Server {
 
   private static final Logger logger = LogManager.getLogger(ZabbixServer.class);
+  private static final int CHUNK_SIZE = 200;
+  private static final int ACK_ACTION_ACKNOWLEDGE = 2;
+  private static final int ACK_ACTION_MESSAGE = 4;
+
   private ZabbixServerConfiguration configuration;
   private final HttpClient httpClient = HttpClient.newBuilder().build();
+
+  // Cached session state — refreshed on demand
+  private String apiVersion = "";
+  private String authToken = "";
+  private boolean useBearerHeader = false;
 
   public ZabbixServer() {
     this.configuration = new ZabbixServerConfiguration();
@@ -30,100 +39,213 @@ public class ZabbixServer implements Server {
 
   @Override
   public List<Message> pollMessages() {
-    logger.debug("Starting pollMessages()");
+    logger.debug("pollMessages() start");
     List<Message> messages = new ArrayList<>();
     try {
-      String url = configuration.getUrl().getValue();
-      String username = configuration.getUsername().getValue();
-      String password = configuration.getPassword().getValue();
-      String apiUrl = url + "/api_jsonrpc.php";
-      logger.info("Logging in to Zabbix: {} as {}", url, username);
-      // 1. Login: Get Auth-Token
-      JSONObject loginRequest = new JSONObject();
-      loginRequest.put("jsonrpc", "2.0");
-      loginRequest.put("method", "user.login");
-      loginRequest.put("params", new JSONObject()
-        .put("user", username)
-        .put("password", password));
-      loginRequest.put("id", 1);
-      HttpRequest request = HttpRequest.newBuilder()
-        .uri(URI.create(apiUrl))
-        .header("Content-Type", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(loginRequest.toString(), StandardCharsets.UTF_8))
-        .build();
-      HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-      logger.debug("Login response: {}", response.body());
-      JSONObject loginResponse = new JSONObject(response.body());
-      if (!loginResponse.has("result")) {
-        logger.error("Login failed: {}", loginResponse.optString("error"));
-        messages.add(createErrorMessage("Login failed: " + loginResponse.optString("error")));
-        return messages;
+      ensureAuthenticated();
+      List<JSONObject> triggers = fetchTriggers();
+      logger.info("Fetched {} active triggers", triggers.size());
+      List<String> filterList = parseFilter();
+      for (JSONObject trigger : triggers) {
+        if (isFiltered(trigger, filterList)) continue;
+        messages.add(ZabbixMessage.fromTrigger(trigger));
       }
-      String authToken = loginResponse.getString("result");
-      logger.info("Login successful, token received");
-      // 2. Get problems
-      JSONObject problemRequest = new JSONObject();
-      problemRequest.put("jsonrpc", "2.0");
-      problemRequest.put("method", "problem.get");
-      problemRequest.put("params", new JSONObject()
-        .put("recent", true)
-        .put("sortfield", "eventid")
-        .put("sortorder", "DESC")
-        .put("limit", 10));
-      problemRequest.put("auth", authToken);
-      problemRequest.put("id", 2);
-      logger.debug("Sending problem request: {}", problemRequest);
-      HttpRequest reqProblems = HttpRequest.newBuilder()
-        .uri(URI.create(apiUrl))
-        .header("Content-Type", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(problemRequest.toString(), StandardCharsets.UTF_8))
-        .build();
-      HttpResponse<String> respProblems = httpClient.send(reqProblems, HttpResponse.BodyHandlers.ofString());
-      logger.debug("Problem response: {}", respProblems.body());
-      JSONObject problemsResponse = new JSONObject(respProblems.body());
-      if (!problemsResponse.has("result")) {
-        logger.error("Error fetching problems: {}", problemsResponse.optString("error"));
-        messages.add(createErrorMessage("Error fetching problems: " + problemsResponse.optString("error")));
-        return messages;
-      }
-      JSONArray problems = problemsResponse.getJSONArray("result");
-      logger.info("{} problems fetched", problems.length());
-      String filterText = "";
-      if (configuration.getFilter() != null && configuration.getFilter().getValue() != null) {
-        filterText = configuration.getFilter().getValue().trim();
-      }
-      List<String> filterList = new ArrayList<>();
-      if (!filterText.isEmpty()) {
-        for (String s : filterText.split(";")) {
-          String trimmed = s.trim();
-          if (!trimmed.isEmpty()) filterList.add(trimmed);
-        }
-      }
-      for (int i = 0; i < problems.length(); i++) {
-        JSONObject problem = problems.getJSONObject(i);
-        String name = problem.optString("name", "");
-        boolean filtered = false;
-        for (String filter : filterList) {
-          if (!filter.isEmpty() && name.contains(filter)) {
-            logger.info("Message '{}' filtered by filter '{}'.", name, filter);
-            filtered = true;
-            break;
-          }
-        }
-        if (!filtered) {
-          messages.add(ZabbixMessage.fromJson(problem));
-        }
-      }
+    } catch (ZabbixApiException e) {
+      logger.error("API error in pollMessages: {}", e.getMessage());
+      // Force re-auth on next call in case token expired
+      authToken = "";
+      messages.add(errorMessage(e.getMessage()));
     } catch (Exception e) {
       logger.error("Error in pollMessages(): {}", e.getMessage(), e);
-      messages.add(createErrorMessage("Error: " + e.getMessage()));
+      messages.add(errorMessage("Error: " + e.getMessage()));
     }
     return messages;
   }
 
-  private Message createErrorMessage(String msg) {
+  private List<String> parseFilter() {
+    List<String> filterList = new ArrayList<>();
+    if (configuration.getFilter() == null) return filterList;
+    String filterText = configuration.getFilter().getValue();
+    if (filterText == null) return filterList;
+    for (String s : filterText.split(";")) {
+      String trimmed = s.trim();
+      if (!trimmed.isEmpty()) filterList.add(trimmed);
+    }
+    return filterList;
+  }
+
+  private boolean isFiltered(JSONObject trigger, List<String> filterList) {
+    if (filterList.isEmpty()) return false;
+    String description = trigger.optString("description", "");
+    JSONObject lastEvent = trigger.optJSONObject("lastEvent");
+    String eventName = lastEvent != null ? lastEvent.optString("name", "") : "";
+    for (String filter : filterList) {
+      if (description.contains(filter) || eventName.contains(filter)) {
+        logger.info("Trigger '{}' filtered by '{}'", description, filter);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private List<JSONObject> fetchTriggers() throws Exception {
+    JSONObject idsParams = new JSONObject()
+        .put("only_true", true)
+        .put("skipDependent", true)
+        .put("monitored", true)
+        .put("active", true)
+        .put("output", new JSONArray().put("triggerid"));
+    JSONObject idsResp = apiRequest("trigger.get", idsParams);
+    JSONArray idResult = idsResp.getJSONArray("result");
+    List<String> triggerIds = new ArrayList<>(idResult.length());
+    for (int i = 0; i < idResult.length(); i++) {
+      triggerIds.add(idResult.getJSONObject(i).getString("triggerid"));
+    }
+
+    List<JSONObject> triggers = new ArrayList<>(triggerIds.size());
+    for (int i = 0; i < triggerIds.size(); i += CHUNK_SIZE) {
+      List<String> chunk = triggerIds.subList(i, Math.min(i + CHUNK_SIZE, triggerIds.size()));
+      JSONObject params = new JSONObject()
+          .put("only_true", true)
+          .put("skipDependent", true)
+          .put("monitored", true)
+          .put("active", true)
+          .put("output", new JSONArray()
+              .put("triggerid").put("description").put("lastchange").put("manual_close").put("priority"))
+          .put("triggerids", new JSONArray(chunk))
+          .put("selectLastEvent", new JSONArray()
+              .put("eventid").put("name").put("opdata").put("clock").put("acknowledged").put("value").put("severity"))
+          .put("selectHosts", new JSONArray()
+              .put("hostid").put("host").put("name").put("status").put("maintenance_status"))
+          .put("selectItems", new JSONArray()
+              .put("name").put("lastvalue").put("state").put("lastclock"));
+      JSONObject resp = apiRequest("trigger.get", params);
+      JSONArray arr = resp.getJSONArray("result");
+      for (int j = 0; j < arr.length(); j++) {
+        triggers.add(arr.getJSONObject(j));
+      }
+    }
+    return triggers;
+  }
+
+  private void ensureAuthenticated() throws Exception {
+    if (apiVersion.isEmpty()) {
+      apiVersion = fetchApiVersion();
+      logger.info("Zabbix API version: {}", apiVersion);
+    }
+    if (!authToken.isEmpty()) return;
+    String token = configuration.getApiToken() != null ? configuration.getApiToken().getValue() : "";
+    if (token != null && !token.isEmpty()) {
+      authToken = token.trim();
+      useBearerHeader = true;
+      logger.info("Using configured API token (Bearer auth)");
+      return;
+    }
+    login();
+  }
+
+  private String fetchApiVersion() throws Exception {
+    JSONObject body = new JSONObject()
+        .put("jsonrpc", "2.0")
+        .put("method", "apiinfo.version")
+        .put("params", new JSONArray())
+        .put("id", nextId());
+    JSONObject resp = sendJsonRpc(body, false);
+    return resp.getString("result");
+  }
+
+  private void login() throws Exception {
+    String username = configuration.getUsername().getValue();
+    String password = configuration.getPassword().getValue();
+    String userKey = isAtLeast64() ? "username" : "user";
+    JSONObject body = new JSONObject()
+        .put("jsonrpc", "2.0")
+        .put("method", "user.login")
+        .put("params", new JSONObject().put(userKey, username).put("password", password))
+        .put("id", nextId());
+    JSONObject resp = sendJsonRpc(body, false);
+    authToken = resp.getString("result");
+    useBearerHeader = isAtLeast64();
+    logger.info("Login successful (bearer={})", useBearerHeader);
+  }
+
+  private JSONObject apiRequest(String method, JSONObject params) throws Exception {
+    JSONObject body = new JSONObject()
+        .put("jsonrpc", "2.0")
+        .put("method", method)
+        .put("params", params)
+        .put("id", nextId());
+    if (!useBearerHeader && !authToken.isEmpty()) {
+      body.put("auth", authToken);
+    }
+    return sendJsonRpc(body, useBearerHeader && !authToken.isEmpty());
+  }
+
+  private JSONObject sendJsonRpc(JSONObject body, boolean withBearer) throws Exception {
+    String apiUrl = configuration.getUrl().getValue() + "/api_jsonrpc.php";
+    HttpRequest.Builder builder = HttpRequest.newBuilder()
+        .uri(URI.create(apiUrl))
+        .header("Content-Type", "application/json-rpc")
+        .header("Accept", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8));
+    if (withBearer) {
+      builder.header("Authorization", "Bearer " + authToken);
+    }
+    HttpResponse<String> resp = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    if (resp.statusCode() / 100 != 2) {
+      throw new ZabbixApiException("HTTP " + resp.statusCode() + " from Zabbix API");
+    }
+    JSONObject json = new JSONObject(resp.body());
+    if (json.has("error")) {
+      JSONObject err = json.getJSONObject("error");
+      String msg = err.optString("data", err.optString("message", "Unknown API error"));
+      throw new ZabbixApiException(msg);
+    }
+    if (!json.has("result")) {
+      throw new ZabbixApiException("No result in response");
+    }
+    return json;
+  }
+
+  private long requestId = 0;
+
+  private long nextId() {
+    return ++requestId;
+  }
+
+  private boolean isAtLeast64() {
+    return compareVersion(apiVersion, "6.4") >= 0;
+  }
+
+  static int compareVersion(String a, String b) {
+    String[] aParts = a.split("\\.");
+    String[] bParts = b.split("\\.");
+    int len = Math.max(aParts.length, bParts.length);
+    for (int i = 0; i < len; i++) {
+      int ai = i < aParts.length ? parsePart(aParts[i]) : 0;
+      int bi = i < bParts.length ? parsePart(bParts[i]) : 0;
+      if (ai != bi) return Integer.compare(ai, bi);
+    }
+    return 0;
+  }
+
+  private static int parsePart(String s) {
+    StringBuilder digits = new StringBuilder();
+    for (char c : s.toCharArray()) {
+      if (Character.isDigit(c)) digits.append(c);
+      else break;
+    }
+    if (digits.length() == 0) return 0;
+    try {
+      return Integer.parseInt(digits.toString());
+    } catch (NumberFormatException e) {
+      return 0;
+    }
+  }
+
+  private Message errorMessage(String msg) {
     return new ZabbixMessage(
-        "error", // ID für Fehlernachrichten
+        "error",
         "Zabbix Fehler",
         msg,
         "-",
@@ -143,7 +265,10 @@ public class ZabbixServer implements Server {
     logger.debug("setConfiguration() called");
     if (configuration instanceof ZabbixServerConfiguration zabbixConfig) {
       this.configuration = zabbixConfig;
-      logger.info("Configuration applied: {}", zabbixConfig);
+      // Drop cached state so new credentials take effect
+      this.apiVersion = "";
+      this.authToken = "";
+      this.useBearerHeader = false;
     }
   }
 
@@ -151,36 +276,17 @@ public class ZabbixServer implements Server {
   public ConfigurationTestResult testConfiguration(Configuration configuration) {
     logger.debug("testConfiguration() called");
     if (!(configuration instanceof ZabbixServerConfiguration zabbixConfig)) {
-      logger.error("Invalid configuration provided");
       return new ConfigurationTestResult(false, "Invalid configuration");
     }
+    ZabbixServer probe = new ZabbixServer();
+    probe.configuration = zabbixConfig;
     try {
-      String url = zabbixConfig.getUrl().getValue();
-      String username = zabbixConfig.getUsername().getValue();
-      String password = zabbixConfig.getPassword().getValue();
-      String apiUrl = url + "/api_jsonrpc.php";
-      logger.info("Test login to Zabbix: {} as {}", url, username);
-      JSONObject loginRequest = new JSONObject();
-      loginRequest.put("jsonrpc", "2.0");
-      loginRequest.put("method", "user.login");
-      loginRequest.put("params", new JSONObject()
-        .put("user", username)
-        .put("password", password));
-      loginRequest.put("id", 1);
-      HttpRequest request = HttpRequest.newBuilder()
-        .uri(URI.create(apiUrl))
-        .header("Content-Type", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(loginRequest.toString(), StandardCharsets.UTF_8))
-        .build();
-      HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-      logger.debug("Test login response: {}", response.body());
-      JSONObject loginResponse = new JSONObject(response.body());
-      if (!loginResponse.has("result")) {
-        logger.error("Test login failed: {}", loginResponse.optString("error"));
-        return new ConfigurationTestResult(false, "Login failed: " + loginResponse.optString("error"));
-      }
-      logger.info("Test login successful");
+      probe.ensureAuthenticated();
+      // Cheap probe call to confirm token works
+      probe.apiRequest("apiinfo.version", new JSONObject());
       return new ConfigurationTestResult(true, "Connection successful");
+    } catch (ZabbixApiException e) {
+      return new ConfigurationTestResult(false, "Login failed: " + e.getMessage());
     } catch (Exception e) {
       logger.error("Error in test login: {}", e.getMessage(), e);
       return new ConfigurationTestResult(false, "Error: " + e.getMessage());
@@ -189,71 +295,45 @@ public class ZabbixServer implements Server {
 
   @Override
   public boolean acknowledgeMessage(String eventId, String message) {
-    logger.info("Acknowledge event {} with message: {}", eventId, message);
-    String url = configuration.getUrl().getValue();
-    String username = configuration.getUsername().getValue();
-    String password = configuration.getPassword().getValue();
-    String apiUrl = url + "/api_jsonrpc.php";
+    logger.info("Acknowledge event {} (message: {})", eventId, message);
+    if (eventId == null || eventId.isEmpty() || "error".equals(eventId)) {
+      return false;
+    }
     try {
-      // 1. Login: Get Auth-Token
-      JSONObject loginRequest = new JSONObject();
-      loginRequest.put("jsonrpc", "2.0");
-      loginRequest.put("method", "user.login");
-      loginRequest.put("params", new JSONObject()
-          .put("user", username)
-          .put("password", password));
-      loginRequest.put("id", 1);
-      HttpRequest loginHttpRequest = HttpRequest.newBuilder()
-          .uri(URI.create(apiUrl))
-          .header("Content-Type", "application/json")
-          .POST(HttpRequest.BodyPublishers.ofString(loginRequest.toString(), StandardCharsets.UTF_8))
-          .build();
-      HttpResponse<String> loginResponse = httpClient.send(loginHttpRequest, HttpResponse.BodyHandlers.ofString());
-      JSONObject loginJson = new JSONObject(loginResponse.body());
-      if (!loginJson.has("result")) {
-        logger.error("Login failed: {}", loginJson);
-        return false;
-      }
-      String authToken = loginJson.getString("result");
-      // 2. Acknowledge event
-      JSONObject ackRequest = new JSONObject();
-      ackRequest.put("jsonrpc", "2.0");
-      ackRequest.put("method", "event.acknowledge");
-      JSONObject params = new JSONObject();
-      params.put("eventids", eventId);
-      params.put("action", 6);
+      ensureAuthenticated();
+      int action = ACK_ACTION_ACKNOWLEDGE;
+      JSONObject params = new JSONObject()
+          .put("eventids", eventId);
       if (message != null && !message.isEmpty()) {
+        action |= ACK_ACTION_MESSAGE;
         params.put("message", message);
       }
-      ackRequest.put("params", params);
-      ackRequest.put("auth", authToken);
-      ackRequest.put("id", 2);
-      HttpRequest ackHttpRequest = HttpRequest.newBuilder()
-          .uri(URI.create(apiUrl))
-          .header("Content-Type", "application/json")
-          .POST(HttpRequest.BodyPublishers.ofString(ackRequest.toString(), StandardCharsets.UTF_8))
-          .build();
-      HttpResponse<String> ackResponse = httpClient.send(ackHttpRequest, HttpResponse.BodyHandlers.ofString());
-      logger.info("Acknowledge acknowledge response: {}", ackResponse.body());
-      JSONObject ackJson = new JSONObject(ackResponse.body());
-      if (ackJson.has("result") && ackJson.getJSONObject("result").has("eventids")) {
-        JSONArray eventIds = ackJson.getJSONObject("result").getJSONArray("eventids");
-        boolean success = false;
-        for (int i = 0; i < eventIds.length(); i++) {
-          if (String.valueOf(eventIds.get(i)).equals(eventId)) {
-            success = true;
-            break;
-          }
-        }
-        return success;
-      } else {
-        logger.error("Acknowledge failed: {}", ackJson);
+      params.put("action", action);
+      JSONObject resp = apiRequest("event.acknowledge", params);
+      JSONObject result = resp.optJSONObject("result");
+      if (result == null) {
+        logger.error("Acknowledge: missing result");
         return false;
       }
+      JSONArray eventIds = result.optJSONArray("eventids");
+      if (eventIds == null) return false;
+      for (int i = 0; i < eventIds.length(); i++) {
+        if (String.valueOf(eventIds.get(i)).equals(eventId)) return true;
+      }
+      return false;
+    } catch (ZabbixApiException e) {
+      logger.error("Acknowledge failed: {}", e.getMessage());
+      authToken = "";
+      return false;
     } catch (Exception e) {
       logger.error("Exception during acknowledgeMessage", e);
       return false;
     }
   }
 
+  private static class ZabbixApiException extends RuntimeException {
+    ZabbixApiException(String message) {
+      super(message);
+    }
+  }
 }
