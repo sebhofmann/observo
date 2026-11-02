@@ -47,6 +47,14 @@ impl MonitorError {
         self
     }
 
+    /// The server's or transport's own wording, shown below the generic text.
+    pub fn detail_text(&self) -> String {
+        match &self.details {
+            Some(details) => format!("{} ({details})", self.message),
+            None => self.message.clone(),
+        }
+    }
+
     pub fn i18n_key(&self) -> &'static str {
         match self.kind {
             ErrorKind::Network => "error.network",
@@ -131,6 +139,22 @@ pub fn default_provider() -> &'static dyn ServerProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn detail_text_keeps_the_server_message() {
+        let error = MonitorError::new(ErrorKind::Protocol, "No permissions to referred object")
+            .with_details("code -32602");
+        assert_eq!(
+            error.detail_text(),
+            "No permissions to referred object (code -32602)"
+        );
+    }
+
+    #[test]
+    fn detail_text_without_details_is_the_message() {
+        let error = MonitorError::new(ErrorKind::Protocol, "Zabbix response has no result");
+        assert_eq!(error.detail_text(), "Zabbix response has no result");
+    }
 
     #[test]
     fn registry_contains_zabbix_and_falls_back() {

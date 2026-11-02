@@ -41,9 +41,8 @@ pub fn parse(input: &str) -> BTreeMap<String, String> {
     }
 
     for line in logical_lines {
-        if let Some((key, value)) = split_key_value(&line) {
-            result.insert(unescape(&key), unescape(&value));
-        }
+        let (key, value) = split_key_value(&line);
+        result.insert(unescape(&key), unescape(&value));
     }
     result
 }
@@ -53,9 +52,9 @@ fn has_continuation(line: &str) -> bool {
     trailing % 2 == 1
 }
 
-fn split_key_value(line: &str) -> Option<(String, String)> {
+fn split_key_value(line: &str) -> (String, String) {
     let mut escaped = false;
-    let mut separator = None;
+    let mut key_end = line.len();
     for (index, ch) in line.char_indices() {
         if escaped {
             escaped = false;
@@ -64,30 +63,22 @@ fn split_key_value(line: &str) -> Option<(String, String)> {
         match ch {
             '\\' => escaped = true,
             '=' | ':' => {
-                separator = Some((index, ch.len_utf8()));
+                key_end = index;
                 break;
             }
             c if c.is_whitespace() => {
-                separator = Some((index, 0));
+                key_end = index;
                 break;
             }
             _ => {}
         }
     }
 
-    let (index, separator_len) = separator?;
-    let key = &line[..index];
-    let mut value_start = index + separator_len;
+    let (key, rest) = line.split_at(key_end);
     // Whitespace before and after the separator is not part of the value.
-    while value_start < line.len() {
-        let ch = line[value_start..].chars().next()?;
-        if ch.is_whitespace() {
-            value_start += ch.len_utf8();
-        } else {
-            break;
-        }
-    }
-    Some((key.to_string(), line[value_start..].to_string()))
+    let rest = rest.trim_start();
+    let value = rest.strip_prefix(['=', ':']).unwrap_or(rest).trim_start();
+    (key.to_string(), value.to_string())
 }
 
 fn read_hex4(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> Option<u32> {
@@ -215,6 +206,21 @@ empty=
         assert_eq!(parsed.get("unicode").unwrap(), "Grüße");
         assert_eq!(parsed.get("continued").unwrap(), "firstsecond");
         assert_eq!(parsed.get("empty").unwrap(), "");
+    }
+
+    #[test]
+    fn separator_may_be_surrounded_by_whitespace() {
+        let parsed = parse("spaced = http://host/zabbix\ncolon\t:\tvalue\ndouble == x\n");
+        assert_eq!(parsed.get("spaced").unwrap(), "http://host/zabbix");
+        assert_eq!(parsed.get("colon").unwrap(), "value");
+        assert_eq!(parsed.get("double").unwrap(), "= x");
+    }
+
+    #[test]
+    fn key_without_separator_has_empty_value() {
+        let parsed = parse("bare\nescaped\\ key\n");
+        assert_eq!(parsed.get("bare").unwrap(), "");
+        assert_eq!(parsed.get("escaped key").unwrap(), "");
     }
 
     #[test]

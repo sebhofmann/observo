@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use gpui_kit::assets::IconName;
 use gpui_kit::base::{Disableable as _, StyledExt as _};
@@ -28,11 +28,59 @@ use crate::settings::{Settings, ThemePreference};
 use crate::ui::table::{MessagesTable, classification_color};
 use crate::ui::widgets::{badge, icon_tile, metric, separator, status_pill};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ConnectionStatus {
+    #[default]
     Connecting,
     Online,
     Offline,
+}
+
+/// What a successful poll changed compared to the polls before it.
+struct PollSuccess {
+    new_alerts: HashSet<String>,
+    restored: bool,
+}
+
+/// Remembers poll results between polls. The displayed status also passes
+/// through `Connecting` on manual refreshes, so connection changes are detected
+/// here against the last real result instead.
+#[derive(Default)]
+struct PollTracker {
+    settled: ConnectionStatus,
+    known_alerts: HashSet<String>,
+    baseline_ready: bool,
+}
+
+impl PollTracker {
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
+
+    /// Returns whether this failure ended a working connection.
+    fn record_failure(&mut self) -> bool {
+        let lost = self.settled == ConnectionStatus::Online;
+        self.settled = ConnectionStatus::Offline;
+        lost
+    }
+
+    fn record_success(&mut self, alerts: HashSet<String>) -> PollSuccess {
+        let restored = self.settled == ConnectionStatus::Offline;
+        self.settled = ConnectionStatus::Online;
+        // The first successful poll only seeds the baseline: problems that
+        // already existed when the app started must not notify.
+        let new_alerts = if self.baseline_ready {
+            alerts.difference(&self.known_alerts).cloned().collect()
+        } else {
+            HashSet::new()
+        };
+        self.baseline_ready = true;
+        self.known_alerts = alerts;
+        PollSuccess {
+            new_alerts,
+            restored,
+        }
+    }
 }
 
 pub struct ObservoApp {
@@ -53,10 +101,10 @@ pub struct ObservoApp {
     pub search: Entity<InputState>,
     pub focus_handle: gpui_kit::FocusHandle,
     poll: PollHandle,
-    known_alert_ids: HashSet<String>,
-    initial_poll_completed: bool,
+    tracker: PollTracker,
     _subscriptions: Vec<Subscription>,
     _poll_task: Task<()>,
+    _clock_task: Task<()>,
 }
 
 impl ObservoApp {
@@ -135,6 +183,17 @@ impl ObservoApp {
             }
         });
 
+        // The footer countdown and "last updated" label are derived from the
+        // clock, so they need a redraw even when no event arrives.
+        let clock_task = cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(Duration::from_secs(1)).await;
+                if this.update(cx, |_, cx| cx.notify()).is_err() {
+                    break;
+                }
+            }
+        });
+
         let mut app = Self {
             settings,
             i18n,
@@ -153,10 +212,10 @@ impl ObservoApp {
             search,
             focus_handle,
             poll,
-            known_alert_ids: HashSet::new(),
-            initial_poll_completed: false,
+            tracker: PollTracker::default(),
             _subscriptions: vec![table_subscription, search_subscription],
             _poll_task: poll_task,
+            _clock_task: clock_task,
         };
         app.apply_theme(window, cx);
 
@@ -226,11 +285,10 @@ impl ObservoApp {
                 error,
             } => {
                 self.last_attempt = Some(at);
-                let previous = self.status;
                 if let Some(error) = error {
                     self.status = ConnectionStatus::Offline;
                     self.last_error = Some(error);
-                    if previous == ConnectionStatus::Online {
+                    if self.tracker.record_failure() {
                         self.notify_connection_lost(window, cx);
                     }
                 } else {
@@ -241,35 +299,29 @@ impl ObservoApp {
                     self.refresh_rows(cx);
 
                     // Notifications are based on all server-filtered problems,
-                    // not on the transient search/severity view. The first
-                    // successful poll only seeds the baseline: problems that
-                    // already existed when the app started must not notify.
+                    // not on the transient search/severity view.
                     let current_alerts: HashSet<String> = self
                         .messages
                         .iter()
                         .filter(|message| message.is_alert())
                         .map(|message| message.id.clone())
                         .collect();
-                    if self.initial_poll_completed {
-                        let new_alerts = current_alerts.difference(&self.known_alert_ids).count();
+                    let PollSuccess {
+                        new_alerts,
+                        restored,
+                    } = self.tracker.record_success(current_alerts);
+                    if !new_alerts.is_empty() {
                         let new_critical = self
                             .messages
                             .iter()
                             .filter(|message| {
-                                message.is_alert()
-                                    && message.severity >= 4
-                                    && !self.known_alert_ids.contains(&message.id)
+                                message.severity >= 4 && new_alerts.contains(&message.id)
                             })
                             .count();
-                        if new_alerts > 0 {
-                            self.notify_new_problems(new_alerts, new_critical, window, cx);
-                        }
-                    } else {
-                        self.initial_poll_completed = true;
+                        self.notify_new_problems(new_alerts.len(), new_critical, window, cx);
                     }
-                    self.known_alert_ids = current_alerts;
 
-                    if previous == ConnectionStatus::Offline {
+                    if restored {
                         self.notify_connection_restored(window, cx);
                     }
                 }
@@ -316,9 +368,9 @@ impl ObservoApp {
                 cx.notify();
             }
             PollEvent::ConfigurationApplied => {
-                self.status = ConnectionStatus::Connecting;
-                self.known_alert_ids.clear();
-                self.initial_poll_completed = false;
+                // A poll that was running during the change may have delivered
+                // results of the old server in the meantime.
+                self.forget_server_state(cx);
                 cx.notify();
             }
         }
@@ -410,10 +462,7 @@ impl ObservoApp {
         );
         self.rows = rows;
 
-        let mut selected_index = None;
-        if let Some(selected) = &self.selected_id {
-            selected_index = self.rows.iter().position(|message| &message.id == selected);
-        }
+        let selected_id = self.selected_id.clone();
         let table_rows = self.rows.clone();
         let compact = self.selected_id.is_some();
         self.table.update(cx, |table, cx| {
@@ -422,7 +471,14 @@ impl ObservoApp {
             if layout_changed {
                 table.refresh(cx);
             }
+            // The delegate applies its own column sort, so the row index is only
+            // known after set_messages.
+            let selected_index = selected_id
+                .as_deref()
+                .and_then(|id| table.delegate().index_of(id));
             match selected_index {
+                // Selecting a row scrolls to it, which must not happen on every poll.
+                Some(index) if table.selected_row() == Some(index) => {}
                 Some(index) => table.set_selected_row(index, cx),
                 None => table.clear_selection(cx),
             }
@@ -504,6 +560,18 @@ impl ObservoApp {
         self.rows.iter().find(|message| &message.id == id)
     }
 
+    /// Drops everything that belongs to the previously configured server, so
+    /// that none of its problems stay visible or can be acknowledged.
+    fn forget_server_state(&mut self, cx: &mut Context<Self>) {
+        self.status = ConnectionStatus::Connecting;
+        self.last_error = None;
+        self.last_update = None;
+        self.tracker.reset();
+        self.messages.clear();
+        self.selected_id = None;
+        self.refresh_rows(cx);
+    }
+
     fn refresh_now(&mut self, cx: &mut Context<Self>) {
         self.status = ConnectionStatus::Connecting;
         self.poll.poll_now();
@@ -522,6 +590,7 @@ impl ObservoApp {
             return Err(self.i18n.t("serverConfig.invalid").to_string());
         }
         let configuration = configuration.normalised();
+        let changed = configuration != self.settings.server;
         self.settings.server = configuration.clone();
         self.settings.provider_id = provider.id().to_string();
         if let Err(error) = self.settings.save() {
@@ -530,10 +599,12 @@ impl ObservoApp {
                 &[("error", &error.to_string())],
             ));
         }
-        self.status = ConnectionStatus::Connecting;
-        self.last_error = None;
-        self.known_alert_ids.clear();
-        self.poll.update_configuration(configuration);
+        if changed {
+            self.forget_server_state(cx);
+            self.poll.update_configuration(configuration);
+        } else {
+            self.refresh_now(cx);
+        }
         window.push_notification(
             Notification::new()
                 .message(self.i18n.t("serverConfig.saved"))
@@ -962,11 +1033,9 @@ impl ObservoApp {
                 .tf(error.i18n_key(), &[("status", &status.to_string())]),
             _ => self.i18n.t(error.i18n_key()).to_string(),
         };
-        let details = error
-            .details
-            .as_ref()
-            .map(|details| self.i18n.tf("error.details", &[("details", details)]))
-            .unwrap_or_default();
+        let details = self
+            .i18n
+            .tf("error.details", &[("details", &error.detail_text())]);
         Some(
             div()
                 .mx_4()
@@ -1523,6 +1592,53 @@ mod tests {
             maintenance: false,
             custom_fields: BTreeMap::new(),
         }
+    }
+
+    fn alerts(ids: &[&str]) -> HashSet<String> {
+        ids.iter().map(|id| id.to_string()).collect()
+    }
+
+    #[test]
+    fn first_successful_poll_only_seeds_the_baseline() {
+        let mut tracker = PollTracker::default();
+        assert!(tracker.record_success(alerts(&["a"])).new_alerts.is_empty());
+        assert_eq!(
+            tracker.record_success(alerts(&["a", "b"])).new_alerts,
+            alerts(&["b"])
+        );
+    }
+
+    #[test]
+    fn reset_starts_a_new_baseline() {
+        let mut tracker = PollTracker::default();
+        tracker.record_success(alerts(&["a"]));
+        tracker.reset();
+        assert!(
+            tracker
+                .record_success(alerts(&["a", "b"]))
+                .new_alerts
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn connection_changes_are_reported_once() {
+        let mut tracker = PollTracker::default();
+        assert!(!tracker.record_failure());
+        assert!(tracker.record_success(HashSet::new()).restored);
+        assert!(!tracker.record_success(HashSet::new()).restored);
+        assert!(tracker.record_failure());
+        assert!(!tracker.record_failure());
+    }
+
+    #[test]
+    fn reset_forgets_the_connection_state() {
+        let mut tracker = PollTracker::default();
+        tracker.record_success(HashSet::new());
+        tracker.reset();
+        assert!(!tracker.record_failure());
+        tracker.reset();
+        assert!(!tracker.record_success(HashSet::new()).restored);
     }
 
     #[test]

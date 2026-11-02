@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use directories::ProjectDirs;
 
 use crate::config::Configuration;
@@ -99,6 +99,8 @@ pub struct Settings {
     pub server: Configuration,
     /// Where this settings object was loaded from and where it is saved.
     pub config_path: PathBuf,
+    /// The file exists but could not be read, so saving would destroy it.
+    pub load_failed: bool,
 }
 
 impl Default for Settings {
@@ -114,6 +116,7 @@ impl Default for Settings {
             provider_id: provider.id().to_string(),
             server: provider.default_configuration(),
             config_path: config_path(),
+            load_failed: false,
         }
     }
 }
@@ -139,7 +142,14 @@ impl Settings {
             Ok(bytes) => bytes,
             Err(error) => {
                 warnings.push(format!("could not read {}: {error}", path.display()));
-                return (Settings::default(), warnings);
+                return (
+                    Settings {
+                        config_path: path.to_path_buf(),
+                        load_failed: true,
+                        ..Settings::default()
+                    },
+                    warnings,
+                );
             }
         };
         let text = match String::from_utf8(bytes.clone()) {
@@ -178,8 +188,8 @@ impl Settings {
         let width = parse_f64(values.get("window.width")).unwrap_or(DEFAULT_WIDTH);
         let height = parse_f64(values.get("window.height")).unwrap_or(DEFAULT_HEIGHT);
         settings.window = WindowGeometry {
-            x: parse_f64(values.get("window.x")).filter(|value| *value >= 0.0),
-            y: parse_f64(values.get("window.y")).filter(|value| *value >= 0.0),
+            x: parse_f64(values.get("window.x")),
+            y: parse_f64(values.get("window.y")),
             width,
             height,
             maximized: parse_bool(values.get("window.maximized").map(String::as_str))
@@ -243,6 +253,12 @@ impl Settings {
 
     /// Persists settings atomically and restricts the file to the owner.
     pub fn save(&self) -> Result<()> {
+        if self.load_failed {
+            bail!(
+                "{} could not be read, not overwriting it",
+                self.config_path.display()
+            );
+        }
         self.save_to(&self.config_path)
     }
 
@@ -479,6 +495,30 @@ zabbix.pollIntervalMillis=1
             "http://legacy.example.com/zabbix"
         );
         assert_eq!(loaded.server.number("zabbix.pollIntervalMillis"), 1_000);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn unreadable_file_keeps_its_path_and_is_never_overwritten() {
+        let path = temp_path("unreadable");
+        // Reading a directory fails on every platform, even when running as root.
+        fs::create_dir(&path).unwrap();
+        let (loaded, warnings) = Settings::load_from(&path);
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert_eq!(loaded.config_path, path);
+
+        fs::remove_dir(&path).unwrap();
+        assert!(loaded.save().is_err());
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn loading_keeps_negative_window_position() {
+        let path = temp_path("negative-window");
+        fs::write(&path, "window.x=-1920\nwindow.y=-40\n").unwrap();
+        let (loaded, _) = Settings::load_from(&path);
+        assert_eq!(loaded.window.x, Some(-1920.0));
+        assert_eq!(loaded.window.y, Some(-40.0));
         let _ = fs::remove_file(path);
     }
 

@@ -325,7 +325,7 @@ impl ServerConfigDialog {
         let app = self.app.read(cx);
         let mut configuration = app.settings.server.clone();
         for field in &self.fields {
-            let value = field.input.read(cx).value().trim().to_string();
+            let value = field_text(field.spec.kind, &field.input.read(cx).value()).to_string();
             if field.spec.kind == FieldKind::Number {
                 let seconds = value.parse::<i64>().unwrap_or(-1);
                 configuration.set_number(field.spec.key, seconds.max(0) * 1000);
@@ -884,4 +884,29 @@ pub fn open_about(app: &mut ObservoApp, window: &mut Window, cx: &mut Context<Ob
             .w(px(420.))
             .child(view.clone())
     });
+}
+
+/// Passwords may legitimately contain surrounding whitespace.
+fn field_text(kind: FieldKind, raw: &str) -> &str {
+    if kind == FieldKind::Password {
+        raw
+    } else {
+        raw.trim()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn passwords_keep_surrounding_whitespace() {
+        assert_eq!(field_text(FieldKind::Password, " secret "), " secret ");
+    }
+
+    #[test]
+    fn other_fields_are_trimmed() {
+        assert_eq!(field_text(FieldKind::Text, " admin "), "admin");
+        assert_eq!(field_text(FieldKind::Number, " 30 "), "30");
+    }
 }
