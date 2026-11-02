@@ -1,7 +1,9 @@
-name: Build Distributables
+name: Build and test
 
 on:
   push:
+    branches: [master]
+  pull_request:
     branches: [master]
   release:
     types: [published]
@@ -9,67 +11,185 @@ on:
 permissions:
   contents: write
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
 jobs:
+  test:
+    name: Test (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: Linux
+          - os: macos-latest
+            label: macOS
+          - os: windows-latest
+            label: Windows
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc g++ clang libfontconfig-dev libwayland-dev \
+            libxkbcommon-x11-dev libx11-xcb-dev libssl-dev libzstd-dev \
+            libasound2-dev libvulkan1
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.96.0"
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        if: runner.os == 'Linux'
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Unit tests
+        run: cargo test --locked
+
   package:
     name: Package (${{ matrix.label }})
     runs-on: ${{ matrix.os }}
+    needs: test
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             label: Linux
             suffix: linux
-            archive-ext: tar.gz
-            app-path: Observo
           - os: macos-latest
             label: macOS
             suffix: macos
-            archive-ext: tar.gz
-            app-path: Observo.app
           - os: windows-latest
             label: Windows
             suffix: windows
-            archive-ext: zip
-            app-path: Observo
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc g++ clang libfontconfig-dev libwayland-dev \
+            libxkbcommon-x11-dev libx11-xcb-dev libssl-dev libzstd-dev \
+            libasound2-dev libvulkan1
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
         with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
+          toolchain: "1.96.0"
 
-      - name: Build with Maven
-        run: mvn -B -ntp clean package
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
 
-      - name: Create archive (Unix)
-        if: runner.os != 'Windows'
+      - name: Build release
+        run: cargo build --release --locked
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
         run: |
-          tar czf observo-${{ matrix.suffix }}.tar.gz -C target/dist "${{ matrix.app-path }}"
+          tar czf observo-linux.tar.gz -C target/release observo
 
-      - name: Create archive (Windows)
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p "Observo.app/Contents/MacOS" "Observo.app/Contents/Resources"
+          cp target/release/observo "Observo.app/Contents/MacOS/observo"
+          cp resources/observo.png "Observo.app/Contents/Resources/observo.png"
+          cat > "Observo.app/Contents/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>Observo</string>
+            <key>CFBundleDisplayName</key><string>Observo</string>
+            <key>CFBundleIdentifier</key><string>de.paschty.observo</string>
+            <key>CFBundleVersion</key><string>2.0.0</string>
+            <key>CFBundleShortVersionString</key><string>2.0.0</string>
+            <key>CFBundleExecutable</key><string>observo</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleIconFile</key><string>observo.png</string>
+            <key>LSMinimumSystemVersion</key><string>11.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict>
+          </plist>
+          PLIST
+          tar czf observo-macos.tar.gz Observo.app
+
+      - name: Package (Windows)
         if: runner.os == 'Windows'
-        run: |
-          Compress-Archive -Path "target/dist/${{ matrix.app-path }}" -DestinationPath observo-${{ matrix.suffix }}.zip
         shell: pwsh
+        run: |
+          Compress-Archive -Path "target/release/observo.exe" -DestinationPath "observo-windows.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: observo-${{ matrix.suffix }}
-          path: observo-${{ matrix.suffix }}.${{ matrix['archive-ext'] }}
+          path: observo-${{ matrix.suffix }}.*
           if-no-files-found: error
+          overwrite: true
+
+  integration:
+    name: Live Zabbix integration
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc g++ clang libfontconfig-dev libwayland-dev \
+            libxkbcommon-x11-dev libx11-xcb-dev libssl-dev libzstd-dev \
+            libasound2-dev libvulkan1
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.96.0"
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Start Zabbix
+        run: |
+          docker compose -f docker/zabbix/docker-compose.yml up -d
+          python3 docker/zabbix/seed.py wait
+          python3 docker/zabbix/seed.py setup
+          python3 docker/zabbix/seed.py trigger
+          sleep 15
+          python3 docker/zabbix/seed.py status
+
+      - name: Run live integration test
+        env:
+          OBSERVO_ZABBIX_URL: http://localhost:8080
+        run: cargo test --locked --test zabbix_live -- --nocapture
+
+      - name: Stop Zabbix
+        if: always()
+        run: docker compose -f docker/zabbix/docker-compose.yml down -v
 
   release:
-    name: Publish Release Assets
+    name: Publish release assets
     needs: package
-    runs-on: ubuntu-latest
     if: github.event_name == 'release'
-
+    runs-on: ubuntu-latest
     steps:
       - name: Download packaging artifacts
         uses: actions/download-artifact@v4
@@ -77,9 +197,6 @@ jobs:
           pattern: observo-*
           merge-multiple: true
           path: release-artifacts
-
-      - name: List files
-        run: ls -R release-artifacts
 
       - name: Attach files to GitHub release
         uses: softprops/action-gh-release@v2

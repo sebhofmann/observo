@@ -1,35 +1,25 @@
-target/
-!.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+# Rust / Cargo
+/target/
+**/*.rs.bk
+Cargo.lock.orig
 
-### IntelliJ IDEA ###
-*.iws
-*.iml
-*.ipr
-.idea
+# Legacy Java build output
+legacy-java/target/
 
-### Eclipse ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-### VS Code ###
+# IDE
+.idea/
 .vscode/
+*.iml
+*.iws
+*.ipr
 
-### Mac OS ###
+# OS
 .DS_Store
+Thumbs.db
+
+# Local demo configuration
+*.local.properties
+
+# Python
+__pycache__/
+*.pyc

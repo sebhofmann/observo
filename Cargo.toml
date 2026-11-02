@@ -1,0 +1,43 @@
+[package]
+name = "observo"
+version = "2.0.0"
+edition = "2024"
+rust-version = "1.96"
+description = "A fast, native desktop client for Zabbix problems"
+license = "GPL-3.0-only"
+repository = "https://github.com/paschty/observo"
+default-run = "observo"
+
+[dependencies]
+anyhow = "1.0"
+async-channel = "2.5"
+chrono = { version = "0.4", features = ["serde"] }
+directories = "6.0"
+env_logger = "0.11"
+gpui-kit = "0.8.1"
+image = { version = "0.25", default-features = false, features = ["png"] }
+log = "0.4"
+rodio = { version = "0.23", default-features = false, features = ["playback", "wav"], optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+ureq = { version = "3.5", features = ["json"] }
+url = "2.5"
+
+[features]
+default = ["sound"]
+sound = ["dep:rodio"]
+
+[profile.dev.package]
+gpui-pre = { opt-level = 2 }
+gpui-component = { opt-level = 2 }
+gpui-kit = { opt-level = 2 }
+gpui-kit-assets = { opt-level = 2 }
+gpui-pre-platform = { opt-level = 2 }
+rustybuzz = { opt-level = 2 }
+taffy = { opt-level = 2 }
+ttf-parser = { opt-level = 2 }
+
+[profile.release]
+lto = "thin"
+strip = true
+codegen-units = 16
