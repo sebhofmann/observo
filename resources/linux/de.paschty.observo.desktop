@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Observo
+GenericName=Zabbix Monitor
+Comment=Native desktop client for Zabbix problems
+Exec=observo
+Icon=de.paschty.observo
+Terminal=false
+Categories=Network;Monitor;
+StartupWMClass=de.paschty.observo

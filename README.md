@@ -67,6 +67,15 @@ cargo build --release
 ./target/release/observo
 ```
 
+### Arch Linux package
+
+`packaging/arch/PKGBUILD` builds a package from the working tree, including the desktop
+entry and icon that Wayland compositors need to show the Observo icon:
+
+```sh
+paru -Bi packaging/arch
+```
+
 For development:
 
 ```sh

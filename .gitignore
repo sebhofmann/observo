@@ -23,3 +23,8 @@ Thumbs.db
 # Python
 __pycache__/
 *.pyc
+
+# Arch packaging build output
+/packaging/arch/src/
+/packaging/arch/pkg/
+/packaging/arch/*.pkg.tar.*
