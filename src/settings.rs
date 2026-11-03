@@ -549,6 +549,31 @@ server.zabbix.zabbix.pollIntervalMillis=7000
     }
 
     #[test]
+    fn changed_interval_survives_java_import() {
+        let path = temp_path("java-roundtrip");
+        fs::write(
+            &path,
+            "\
+server.type=zabbix
+server.zabbix.zabbix.url=https\\://zabbix.example.com/
+server.zabbix.zabbix.pollIntervalMillis=60000
+",
+        )
+        .unwrap();
+        let (mut loaded, warnings) = Settings::load_from(&path);
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(loaded.server.number("zabbix.pollIntervalMillis"), 60_000);
+
+        loaded
+            .server
+            .set_number("zabbix.pollIntervalMillis", 30_000);
+        loaded.save_to(&path).unwrap();
+        let (reloaded, _) = Settings::load_from(&path);
+        assert_eq!(reloaded.server.number("zabbix.pollIntervalMillis"), 30_000);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
     fn invalid_values_do_not_crash() {
         let path = temp_path("invalid");
         fs::write(

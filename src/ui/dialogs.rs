@@ -322,6 +322,12 @@ impl ServerConfigDialog {
     }
 
     fn collect(&self, cx: &App) -> Configuration {
+        self.collect_raw(cx).normalised()
+    }
+
+    /// Reads the input fields without normalising, so out of range values
+    /// reach validation instead of being clamped silently.
+    fn collect_raw(&self, cx: &App) -> Configuration {
         let app = self.app.read(cx);
         let mut configuration = app.settings.server.clone();
         for field in &self.fields {
@@ -333,11 +339,11 @@ impl ServerConfigDialog {
                 configuration.set_text(field.spec.key, value);
             }
         }
-        configuration.normalised()
+        configuration
     }
 
     fn validate(&mut self, cx: &App) -> bool {
-        let configuration = self.collect(cx);
+        let configuration = self.collect_raw(cx);
         let provider = monitor::provider(&self.app.read(cx).settings.provider_id);
         self.errors = provider.validate(&configuration);
         self.errors.is_empty()
